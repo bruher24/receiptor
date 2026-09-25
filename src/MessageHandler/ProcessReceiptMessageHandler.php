@@ -48,8 +48,6 @@ final readonly class ProcessReceiptMessageHandler
             $ocrResult = $this->ocr->recognize($tempFile);
             $analysis = $this->analyzer->analyze($ocrResult->text);
 
-            dump($analysis);
-
             foreach ($analysis->items as $item) {
                 $receiptItem = new ReceiptItem();
                 $receiptItem->setName($item->name);
