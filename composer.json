@@ -7,14 +7,24 @@
         "php": ">=8.4",
         "ext-ctype": "*",
         "ext-iconv": "*",
+        "aws/aws-sdk-php": "^3.395",
+        "doctrine/doctrine-bundle": "^3.3",
+        "doctrine/doctrine-migrations-bundle": "^4.0",
+        "doctrine/orm": "^3.7",
         "symfony/console": "8.1.*",
         "symfony/dotenv": "8.1.*",
         "symfony/flex": "^2",
         "symfony/framework-bundle": "8.1.*",
+        "symfony/http-client": "8.1.*",
+        "symfony/messenger": "8.1.*",
+        "symfony/mime": "8.1.*",
+        "symfony/process": "8.1.*",
+        "symfony/redis-messenger": "8.1.*",
         "symfony/runtime": "8.1.*",
+        "symfony/twig-bundle": "8.1.*",
+        "symfony/uid": "8.1.*",
+        "symfony/validator": "8.1.*",
         "symfony/yaml": "8.1.*"
-    },
-    "require-dev": {
     },
     "config": {
         "allow-plugins": {
@@ -67,5 +77,8 @@
             "allow-contrib": false,
             "require": "8.1.*"
         }
+    },
+    "require-dev": {
+        "symfony/maker-bundle": "^1.68"
     }
 }
