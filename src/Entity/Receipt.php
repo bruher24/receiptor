@@ -43,7 +43,7 @@ final class Receipt
     private ?string $ocrText = null;
 
     #[ORM\Column(nullable: true)]
-    private ?DateTimeImmutable $purchased_at = null;
+    private ?DateTimeImmutable $purchasedAt = null;
 
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $merchant = null;
@@ -168,12 +168,12 @@ final class Receipt
 
     public function getPurchasedAt(): ?DateTimeImmutable
     {
-        return $this->purchased_at;
+        return $this->purchasedAt;
     }
 
-    public function setPurchasedAt(DateTimeImmutable $purchased_at): static
+    public function setPurchasedAt(DateTimeImmutable $purchasedAt): static
     {
-        $this->purchased_at = $purchased_at;
+        $this->purchasedAt = $purchasedAt;
 
         return $this;
     }
