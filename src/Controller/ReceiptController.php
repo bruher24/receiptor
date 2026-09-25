@@ -57,6 +57,9 @@ final class ReceiptController extends AbstractController
             new ProcessReceiptMessage($receipt->getId())
         );
 
-        return new Response('', Response::HTTP_ACCEPTED);
+        return $this->json(
+            data: $receipt,
+            context: ['json_encode_options' => JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT]
+        );
     }
 }
