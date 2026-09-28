@@ -16,13 +16,13 @@ use Symfony\Component\Routing\Attribute\Route;
 final class ReceiptController extends AbstractController
 {
     #[Route('/receipts/', name: 'app_receipts_index', methods: ['GET'])]
-    public function index(#[MapQueryParameter] ?int $lastId,ReceiptService $receiptService): Response
+    public function index(#[MapQueryParameter] ?int $lastId, ReceiptService $receiptService): Response
     {
         $receiptsData = $receiptService->getAll($lastId);
         $nextLastId = !empty($receipts) ? end($receipts)->getId() : null;
 
         $dtoList = array_map(
-            fn (Receipt $receipt) => ReceiptDto::fromEntity($receipt),
+            fn(Receipt $receipt) => ReceiptDto::fromEntity($receipt),
             $receiptsData['receipts']
         );
 
@@ -58,7 +58,7 @@ final class ReceiptController extends AbstractController
         );
 
         return $this->json(
-            data: $receipt,
+            data: ReceiptDto::fromEntity($receipt),
             context: ['json_encode_options' => JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT]
         );
     }

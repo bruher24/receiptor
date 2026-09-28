@@ -36,7 +36,12 @@ final class Receipt
     /**
      * @var Collection<int, ReceiptItem>
      */
-    #[ORM\OneToMany(targetEntity: ReceiptItem::class, mappedBy: 'receipt', orphanRemoval: true)]
+    #[ORM\OneToMany(
+        targetEntity: ReceiptItem::class,
+        mappedBy: 'receipt',
+        cascade: ['persist', 'remove'],
+        orphanRemoval: true,
+    )]
     private Collection $items;
 
     #[ORM\Column(type: Types::TEXT, nullable: true)]
@@ -151,6 +156,12 @@ final class Receipt
             }
         }
 
+        return $this;
+    }
+
+    public function clearItems(): static
+    {
+        $this->items->clear();
         return $this;
     }
 
