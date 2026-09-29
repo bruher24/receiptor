@@ -586,7 +586,7 @@ There are no separate HTTP endpoints for OCR or Groq processing. These stages ar
 ### API summary
 
 | Method  | Route                          | Description                                    |
-| ------- | ------------------------------ | ---------------------------------------------- |
+|---------|--------------------------------|------------------------------------------------|
 | `GET`   | `/receipts`                    | Get receipts with optional `lastId` pagination |
 | `POST`  | `/receipts`                    | Upload one or multiple receipts                |
 | `GET`   | `/receipts/{receiptId}`        | Get a receipt by ID                            |
@@ -982,7 +982,7 @@ The cancellation is processed asynchronously by the cancel worker.
 ## Technology stack
 
 | Technology        | Purpose                        |
-| ----------------- | ------------------------------ |
+|-------------------|--------------------------------|
 | PHP 8.4           | Application runtime            |
 | Symfony 8.1       | Backend framework              |
 | Symfony Messenger | Asynchronous processing        |
