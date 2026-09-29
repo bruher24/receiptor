@@ -20,7 +20,7 @@ final class ReceiptController extends AbstractController
     public function index(#[MapQueryParameter] ?int $lastId, ReceiptService $receiptService): Response
     {
         $receiptsData = $receiptService->getAll($lastId);
-        $nextLastId = !empty($receipts) ? end($receipts)->getId() : null;
+        $nextLastId = !empty($receiptsData['receipts']) ? end($receiptsData['receipts'])->getId() : null;
 
         $dtoList = array_map(
             fn(Receipt $receipt) => ReceiptDto::fromEntity($receipt),
@@ -76,7 +76,7 @@ final class ReceiptController extends AbstractController
         $receipt = $receiptService->get($receiptId);
 
         if (empty($receipt)) {
-            $this->createNotFoundException('Чек не найден');
+            throw $this->createNotFoundException('Чек не найден');
         }
 
         $dto = ReceiptDto::fromEntity($receipt);
