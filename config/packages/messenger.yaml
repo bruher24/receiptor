@@ -5,20 +5,27 @@ framework:
 
         transports:
             # https://symfony.com/doc/current/messenger.html#transport-configuration
-            async:
-                dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
-                retry_strategy:
-                    max_retries: 3
-                    delay: 1000
-                    multiplier: 2
-                    max_delay: 10000
+            ocr:
+                dsn: '%env(MESSENGER_OCR_TRANSPORT_DSN)%'
+                options:
+                    group: ocr
+            groq:
+                dsn: '%env(MESSENGER_GROQ_TRANSPORT_DSN)%'
+                options:
+                    group: groq
+            cancel:
+                dsn: '%env(MESSENGER_CANCEL_TRANSPORT_DSN)%'
+                options:
+                    group: cancel
             failed: 'doctrine://default?queue_name=failed'
             sync: 'sync://'
 
         routing:
             # Route your messages to the transports
             # 'App\Message\YourMessage': async
-            'App\Message\ProcessReceiptMessage': async
+            'App\Message\ProcessReceiptOcrMessage': ocr
+            'App\Message\ProcessReceiptGroqMessage': groq
+            'App\Message\ProcessReceiptCancelMessage': cancel
 
 # when@test:
 #    framework:

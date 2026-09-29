@@ -12,10 +12,11 @@ use Symfony\Component\HttpFoundation\File\UploadedFile;
 final readonly class ReceiptService
 {
     public function __construct(
-        private FileStorageInterface $storage,
+        private FileStorageInterface   $storage,
         private EntityManagerInterface $entityManager,
-        private ReceiptRepository $receiptRepository,
-    ) {
+        private ReceiptRepository      $receiptRepository
+    )
+    {
     }
 
     public function getAll(?int $lastId = null): array
@@ -55,5 +56,10 @@ final readonly class ReceiptService
         $this->entityManager->flush();
 
         return $receipt;
+    }
+
+    public function get(int $receiptId): ?Receipt
+    {
+        return $this->receiptRepository->find($receiptId);
     }
 }

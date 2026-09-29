@@ -11,11 +11,37 @@ services:
             redis:
                 condition: service_started
 
-    worker:
+    ocr-worker:
         build:
             context: .
             dockerfile: docker/php/Dockerfile
-        command: php bin/console messenger:consume async --time-limit=3600 -vv
+        command: php bin/console messenger:consume ocr --time-limit=3600 -vv
+        volumes:
+            - .:/var/www/html
+        depends_on:
+            database:
+                condition: service_healthy
+            redis:
+                condition: service_started
+
+    groq-worker:
+        build:
+            context: .
+            dockerfile: docker/php/Dockerfile
+        command: php bin/console messenger:consume groq --time-limit=3600 -vv
+        volumes:
+            - .:/var/www/html
+        depends_on:
+            database:
+                condition: service_healthy
+            redis:
+                condition: service_started
+
+    cancel-worker:
+        build:
+            context: .
+            dockerfile: docker/php/Dockerfile
+        command: php bin/console messenger:consume cancel --time-limit=3600 -vv
         volumes:
             - .:/var/www/html
         depends_on:

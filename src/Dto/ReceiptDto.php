@@ -14,13 +14,14 @@ final readonly class ReceiptDto
         public string             $storagePath,
         public ReceiptStatus      $status,
         public ?DateTimeImmutable $uploadedAt = null,
-        public ?DateTimeImmutable $processedAt = null,
-        public array              $items,
+        public ?DateTimeImmutable $ocrProcessedAt = null,
+        public ?DateTimeImmutable $groqProcessedAt = null,
         public ?string            $ocrText = null,
         public ?DateTimeImmutable $purchasedAt = null,
         public ?string            $merchant = null,
         public ?string            $inn = null,
-        public ?int               $totalAmount = null
+        public ?int               $totalAmount = null,
+        public array              $items
     )
     {
     }
@@ -33,16 +34,17 @@ final readonly class ReceiptDto
             $receipt->getStoragePath(),
             $receipt->getStatus(),
             $receipt->getUploadedAt(),
-            $receipt->getProcessedAt(),
-            array_map(
-                fn($receiptItem) => ReceiptItemDto::fromEntity($receiptItem),
-                $receipt->getItems()->toArray()
-            ),
+            $receipt->getOcrProcessedAt(),
+            $receipt->getGroqProcessedAt(),
             $receipt->getOcrText(),
             $receipt->getPurchasedAt(),
             $receipt->getMerchant(),
             $receipt->getInn(),
             $receipt->getTotalAmount(),
+            array_map(
+                fn($receiptItem) => ReceiptItemDto::fromEntity($receiptItem),
+                $receipt->getItems()->toArray()
+            ),
         );
     }
 }

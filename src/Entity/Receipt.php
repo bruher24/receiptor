@@ -31,21 +31,13 @@ final class Receipt
     private ?DateTimeImmutable $uploadedAt = null;
 
     #[ORM\Column(nullable: true)]
-    private ?DateTimeImmutable $processedAt = null;
-
-    /**
-     * @var Collection<int, ReceiptItem>
-     */
-    #[ORM\OneToMany(
-        targetEntity: ReceiptItem::class,
-        mappedBy: 'receipt',
-        cascade: ['persist', 'remove'],
-        orphanRemoval: true,
-    )]
-    private Collection $items;
+    private ?\DateTimeImmutable $ocrProcessedAt = null;
 
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     private ?string $ocrText = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?DateTimeImmutable $groqProcessedAt = null;
 
     #[ORM\Column(nullable: true)]
     private ?DateTimeImmutable $purchasedAt = null;
@@ -58,6 +50,17 @@ final class Receipt
 
     #[ORM\Column(nullable: true)]
     private ?int $totalAmount = null;
+
+    /**
+     * @var Collection<int, ReceiptItem>
+     */
+    #[ORM\OneToMany(
+        targetEntity: ReceiptItem::class,
+        mappedBy: 'receipt',
+        cascade: ['persist', 'remove'],
+        orphanRemoval: true,
+    )]
+    private Collection $items;
 
     public function __construct()
     {
@@ -117,14 +120,14 @@ final class Receipt
         return $this;
     }
 
-    public function getProcessedAt(): ?DateTimeImmutable
+    public function getGroqProcessedAt(): ?DateTimeImmutable
     {
-        return $this->processedAt;
+        return $this->groqProcessedAt;
     }
 
-    public function setProcessedAt(?DateTimeImmutable $processedAt): static
+    public function setGroqProcessedAt(?DateTimeImmutable $groqProcessedAt): static
     {
-        $this->processedAt = $processedAt;
+        $this->groqProcessedAt = $groqProcessedAt;
 
         return $this;
     }
@@ -221,6 +224,18 @@ final class Receipt
     public function setTotalAmount(?int $totalAmount): static
     {
         $this->totalAmount = $totalAmount;
+
+        return $this;
+    }
+
+    public function getOcrProcessedAt(): ?\DateTimeImmutable
+    {
+        return $this->ocrProcessedAt;
+    }
+
+    public function setOcrProcessedAt(?\DateTimeImmutable $ocrProcessedAt): static
+    {
+        $this->ocrProcessedAt = $ocrProcessedAt;
 
         return $this;
     }
