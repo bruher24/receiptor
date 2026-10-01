@@ -1,8 +1,11 @@
 # Receiptor
 
-Receiptor is a personal receipt analysis service built with Symfony 8.  
-The application accepts receipt images, stores them in MinIO, extracts text using Tesseract OCR, analyzes the OCR result with Groq, and saves structured receipt data in PostgreSQL.  
-Processing is asynchronous and split into independent stages using Symfony Messenger and Redis. Multiple OCR workers can process receipts concurrently, while Groq and cancellation have their own dedicated workers and queues.  
+Receiptor is a personal receipt analysis service built with Symfony 8.
+
+The application accepts receipt images, stores them in MinIO, extracts text using Tesseract OCR, analyzes the OCR result with Groq, and saves structured receipt data in PostgreSQL.
+
+Processing is asynchronous and split into independent stages using Symfony Messenger and Redis. Multiple OCR workers can process receipts concurrently, while Groq and cancellation have their own dedicated workers and queues.
+
 The project is designed as a practical backend project demonstrating asynchronous processing, queue-based concurrency, external services, object storage, OCR, LLM integration, transactional state changes, row-level locking, real-time events, and containerized infrastructure.
 
 ## Features
@@ -66,8 +69,6 @@ For example, OCR is CPU-intensive and can be scaled independently:
 ```bash
 docker compose up --scale ocr-worker=4 --scale groq-worker=1 --scale cancel-worker=1
 ```
-
-This starts four OCR consumers, one Groq consumer, and one cancellation consumer.
 
 Multiple workers consuming the same Redis transport act as competing consumers: each message is processed by one available worker.
 
@@ -163,6 +164,47 @@ Add the required API credentials to `.env.local`:
 ```dotenv
 GROQ_API_KEY=your_groq_api_key
 ```
+
+## Configuration
+
+The main infrastructure variables are configured through environment variables.
+
+### PostgreSQL
+
+```dotenv
+DATABASE_URL="postgresql://symfony:your_postgres_password@database:5432/receiptanalyzer?serverVersion=16&charset=utf8"
+POSTGRES_USER=symfony
+POSTGRES_PASSWORD=your_postgres_password
+POSTGRES_DB=receiptanalyzer
+```
+
+### MinIO
+
+```dotenv
+MINIO_ENDPOINT=http://minio:9000
+MINIO_ACCESS_KEY=your_minio_credential
+MINIO_SECRET_KEY=your_minio_credential
+MINIO_BUCKET=receipts
+MINIO_REGION=us-east-1
+```
+
+### Redis Messenger transports
+
+```dotenv
+MESSENGER_OCR_TRANSPORT_DSN=redis://redis:6379/messages_ocr
+MESSENGER_GROQ_TRANSPORT_DSN=redis://redis:6379/messages_groq
+MESSENGER_CANCEL_TRANSPORT_DSN=redis://redis:6379/messages_cancel
+```
+
+### Mercure
+
+```dotenv
+MERCURE_URL=http://mercure/.well-known/mercure
+MERCURE_PUBLIC_URL=http://localhost:8081/.well-known/mercure
+MERCURE_JWT_SECRET=your_secret
+```
+
+API keys and other sensitive configuration should be placed in `.env.local` or another environment-specific secret mechanism.
 
 ## Build
 
@@ -414,7 +456,8 @@ The controller dispatches a cancellation message to the dedicated cancel queue a
 The cancel worker then updates the receipt state inside a transaction using row-level locking.  
 After cancellation, a Mercure event is published to notify connected clients.
 
-There are no separate HTTP endpoints for OCR or Groq processing. These stages are triggered internally through Symfony Messenger.
+> [!NOTE]
+> There are no separate HTTP endpoints for OCR or Groq processing. These stages are triggered internally through Symfony Messenger.
 
 ### API summary
 
@@ -475,47 +518,6 @@ For example:
 ```
 
 The exact event payload depends on the event being published.
-
-## Configuration
-
-The main infrastructure variables are configured through environment variables.
-
-### PostgreSQL
-
-```dotenv
-DATABASE_URL="postgresql://symfony:your_postgres_password@database:5432/receiptanalyzer?serverVersion=16&charset=utf8"
-POSTGRES_USER=symfony
-POSTGRES_PASSWORD=your_postgres_password
-POSTGRES_DB=receiptanalyzer
-```
-
-### MinIO
-
-```dotenv
-MINIO_ENDPOINT=http://minio:9000
-MINIO_ACCESS_KEY=your_minio_credential
-MINIO_SECRET_KEY=your_minio_credential
-MINIO_BUCKET=receipts
-MINIO_REGION=us-east-1
-```
-
-### Redis Messenger transports
-
-```dotenv
-MESSENGER_OCR_TRANSPORT_DSN=redis://redis:6379/messages_ocr
-MESSENGER_GROQ_TRANSPORT_DSN=redis://redis:6379/messages_groq
-MESSENGER_CANCEL_TRANSPORT_DSN=redis://redis:6379/messages_cancel
-```
-
-### Mercure
-
-```dotenv
-MERCURE_URL=http://mercure/.well-known/mercure
-MERCURE_PUBLIC_URL=http://localhost:8081/.well-known/mercure
-MERCURE_JWT_SECRET=your_secret
-```
-
-API keys and other sensitive configuration should be placed in `.env.local` or another environment-specific secret mechanism.
 
 ## Logging
 
@@ -580,120 +582,6 @@ The number of OCR workers can be changed without modifying the application:
 ```bash
 docker compose up --scale ocr-worker=4
 ```
-
-## Useful Docker commands
-
-Start the complete stack:
-
-```bash
-docker compose up
-```
-
-Start in detached mode:
-
-```bash
-docker compose up -d
-```
-
-Stop the stack:
-
-```bash
-docker compose down
-```
-
-Rebuild containers:
-
-```bash
-docker compose build
-```
-
-Rebuild without cache:
-
-```bash
-docker compose build --no-cache
-```
-
-Show running containers:
-
-```bash
-docker compose ps
-```
-
-Open a bash inside the PHP container:
-
-```bash
-docker compose exec php bash
-```
-
-Run Symfony commands:
-
-```bash
-docker compose exec php php bin/console
-```
-
-Clear Symfony cache:
-
-```bash
-docker compose exec php php bin/console cache:clear
-```
-
-Inspect registered Messenger handlers:
-
-```bash
-docker compose exec php php bin/console debug:messenger
-```
-
-## Development workflow
-
-A typical development workflow is:
-1. Start infrastructure and workers
-```bash
-make up
-```
-
-2. Upload a receipt:
-
-```bash
-curl -X POST http://localhost:8080/receipts \
-  -F "receipts[]=@/path/to/receipt.jpg"
-```
-
-3. Check the created receipt:
-
-```bash
-curl http://localhost:8080/receipts/1
-```
-
-4. Follow worker processing:
-
-```bash
-docker compose logs -f ocr-worker
-# or
-docker compose logs -f groq-worker
-```
-
-If a receipt needs to be canceled:
-
-```bash
-curl -X PATCH http://localhost:8080/receipts/1/cancel
-```
-
-## Technology stack
-
-| Technology        | Purpose                        |
-|-------------------|--------------------------------|
-| PHP 8.4           | Application runtime            |
-| Symfony 8.1       | Backend framework              |
-| Symfony Messenger | Asynchronous processing        |
-| PostgreSQL 16     | Persistent data storage        |
-| Redis 8           | Message transport              |
-| MinIO             | Receipt image storage          |
-| Tesseract OCR     | Text extraction                |
-| Groq              | LLM-based receipt analysis     |
-| Mercure           | Real-time client notifications |
-| Nginx             | HTTP server / reverse proxy    |
-| Docker Compose    | Local infrastructure           |
-| Monolog           | Application logging            |
 
 ## Why the project uses separate workers
 
