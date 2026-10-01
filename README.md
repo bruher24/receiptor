@@ -1,6 +1,6 @@
-# FlameSentry
+# Receiptor
 
-FlameSentry is a personal receipt analysis service built with Symfony 8.  
+Receiptor is a personal receipt analysis service built with Symfony 8.  
 The application accepts receipt images, stores them in MinIO, extracts text using Tesseract OCR, analyzes the OCR result with Groq, and saves structured receipt data in PostgreSQL.  
 Processing is asynchronous and split into independent stages using Symfony Messenger and Redis. Multiple OCR workers can process receipts concurrently, while Groq and cancellation have their own dedicated workers and queues.  
 The project is designed as a practical backend project demonstrating asynchronous processing, queue-based concurrency, external services, object storage, OCR, LLM integration, transactional state changes, row-level locking, real-time events, and containerized infrastructure.
@@ -35,125 +35,13 @@ The project is designed as a practical backend project demonstrating asynchronou
 
 ## Architecture
 
-```text
-                         ┌───────────────┐
-                         │    Client     │
-                         └───────┬───────┘
-                                 │
-                                 ▼
-                         ┌───────────────┐
-                         │     Nginx     │
-                         └───────┬───────┘
-                                 │
-                                 ▼
-                         ┌───────────────┐
-                         │    Symfony    │
-                         │      API      │
-                         └───────┬───────┘
-                                 │
-                   ┌─────────────┼─────────────┐
-                   │             │             │
-                   ▼             ▼             ▼
-              PostgreSQL      MinIO         Redis
-                                             │
-                         ┌───────────────────┼───────────────────┐
-                         │                   │                   │
-                         ▼                   ▼                   ▼
-                   OCR transport       Groq transport     Cancel transport
-                         │                   │                   │
-                  ┌──────┴──────┐            │                   │
-                  │             │            │                   │
-                  ▼             ▼            ▼                   ▼
-              OCR worker    OCR worker   Groq worker       Cancel worker
-                  │             │            │                   │
-                  └──────┬──────┘            │                   │
-                         │                   │                   │
-                         ▼                   ▼                   ▼
-                    Tesseract             Groq API          PostgreSQL
-                         │
-                         ▼
-                  OCR result → Groq
-                         │
-                         ▼
-                    PostgreSQL
-                         │
-                         ▼
-                      Mercure
-                         │
-                         ▼
-                       Client
-```
-
-## Processing pipeline
-
-A receipt goes through the following pipeline:
-
-```text
-Upload
-  │
-  ▼
-Store image in MinIO
-  │
-  ▼
-Create Receipt
-  │
-  ▼
-Dispatch OCR message
-  │
-  ▼
-Redis OCR queue
-  │
-  ▼
-OCR worker
-  │
-  ├── Read image from MinIO
-  ├── Run Tesseract
-  └── Save OCR result
-  │
-  ▼
-Dispatch Groq message
-  │
-  ▼
-Redis Groq queue
-  │
-  ▼
-Groq worker
-  │
-  ├── Analyze OCR text
-  └── Save structured receipt data
-  │
-  ▼
-Publish Mercure event
-```
-
-Cancellation uses a separate asynchronous path:
-
-```text
-PATCH /receipts/{receiptId}/cancel
-              │
-              ▼
-      Cancel message
-              │
-              ▼
-       Redis cancel queue
-              │
-              ▼
-        Cancel worker
-              │
-              ▼
-     Transaction + row lock
-              │
-              ▼
-      Receipt → canceled
-              │
-              ▼
-      Mercure notification
-```
+<p align="center">
+    <img src="docs/architecture.png" alt="Architecture" width="1200">
+</p>
 
 ## Asynchronous processing
 
-Symfony Messenger is used to decouple HTTP requests from potentially slow receipt processing.
-
+Symfony Messenger is used to decouple HTTP requests from potentially slow receipt processing.  
 The application uses three independent Redis transports:
 
 ```dotenv
@@ -170,8 +58,7 @@ groq-worker
 cancel-worker
 ```
 
-Each worker consumes only its own transport.
-
+Each worker consumes only its own transport.  
 This allows different processing stages to scale independently.
 
 For example, OCR is CPU-intensive and can be scaled independently:
@@ -184,8 +71,6 @@ This starts four OCR consumers, one Groq consumer, and one cancellation consumer
 
 Multiple workers consuming the same Redis transport act as competing consumers: each message is processed by one available worker.
 
-This is queue-level work distribution rather than HTTP load balancing.
-
 ## Concurrency and cancellation
 
 Receipt processing can involve several concurrent operations:
@@ -195,38 +80,14 @@ Receipt processing can involve several concurrent operations:
 * receipt cancellation
 
 A cancellation request can arrive while OCR or Groq processing is already running.
-
 The application therefore does not rely only on in-memory entity state.
 
 State-changing operations use database transactions and row-level locking. Before committing a processing result, the worker obtains a pessimistic lock on the receipt and checks its current status.
 
 Conceptually:
-
-```text
-Worker A                         Worker B
---------                         --------
-Process receipt                  Cancel receipt
-      │                                │
-      ▼                                ▼
-Acquire row lock                Wait for row lock
-      │                                │
-      ▼                                │
-Check status                         │
-      │                                │
-      ▼                                │
-Save result                            │
-      │                                │
-      ▼                                │
-Commit                                  │
-                                       ▼
-                                 Acquire row lock
-                                       │
-                                       ▼
-                                 Check status
-                                       │
-                                       ▼
-                                  Mark canceled
-```
+<p align="center">
+    <img src="docs/cancellation.png" alt="Cancellation" width="500">
+</p>
 
 If cancellation has already been committed, a later processing result is discarded instead of overwriting the canceled state.
 
@@ -238,33 +99,28 @@ The application separates infrastructure and domain responsibilities into dedica
 
 ### File storage
 
-Uploaded files are stored in MinIO through a storage abstraction.
-
+Uploaded files are stored in MinIO through a storage abstraction.  
 The application does not depend directly on the local filesystem for receipt storage.
 
 ### OCR
 
-Tesseract is used to convert receipt images into text.
-
+Tesseract is used to convert receipt images into text.  
 OCR processing runs asynchronously in dedicated workers.
 
 ### Receipt analysis
 
-Groq is used to transform OCR text into structured receipt information.
-
+Groq is used to transform OCR text into structured receipt information.  
 The result is mapped into the receipt domain model.
 
 ### Messaging
 
-Symfony Messenger provides asynchronous communication between processing stages.
-
+Symfony Messenger provides asynchronous communication between processing stages.  
 Redis is used as the message transport.
 
 ### Real-time events
 
-Mercure publishes receipt processing events to connected clients.
-
-The client can subscribe to the `receipts` topic and receive events for all receipts instead of creating a separate subscription for every receipt.
+Mercure publishes receipt processing events to connected clients.  
+The client can subscribe to the `receipts` topic and receive events for all receipts.
 
 ## Requirements
 
@@ -293,7 +149,7 @@ Clone the repository:
 
 ```bash
 git clone <repository-url>
-cd flamesentry
+cd receiptor
 ```
 
 Create the environment configuration:
@@ -307,8 +163,6 @@ Add the required API credentials to `.env.local`:
 ```dotenv
 GROQ_API_KEY=your_groq_api_key
 ```
-
-Do not commit `.env.local` or API credentials to the repository.
 
 ## Build
 
@@ -324,7 +178,8 @@ Install Composer dependencies:
 docker compose run --rm --no-deps php composer install
 ```
 
-The `--no-deps` option prevents Docker Compose from starting PostgreSQL, Redis, and other dependent services just to install Composer dependencies.
+> [!TIP]
+> The `--no-deps` option prevents Docker Compose from starting PostgreSQL, Redis, and other dependent services just to install Composer dependencies.
 
 Alternatively, the Makefile provides:
 
@@ -449,78 +304,70 @@ Example with one file:
 
 ```bash
 curl -X POST http://localhost:8080/receipts \
-  -F "receipt=@/path/to/receipt.jpg"
+  -F "receipts[]=@/path/to/receipt.jpg"
 ```
 
 Example with multiple files:
 
 ```bash
 curl -X POST http://localhost:8080/receipts \
-  -F "receipt1=@/path/to/receipt1.jpg" \
-  -F "receipt2=@/path/to/receipt2.jpg" \
-  -F "receipt3=@/path/to/receipt3.jpg"
+  -F "receipts[]=@/path/to/receipt1.jpg" \
+  -F "receipts[]=@/path/to/receipt2.jpg" \
+  -F "receipts[]=@/path/to/receipt3.jpg"
 ```
 
-The uploaded field names are not fixed. The controller processes all uploaded files from the request.
-
-The request creates the receipts, stores the files in MinIO, and dispatches OCR messages for asynchronous processing.
-
+All uploaded files must be provided using the receipts[] field.  
+The request creates the receipts, stores the files in MinIO, and dispatches OCR messages for asynchronous processing.  
 The response contains the receipts created by the request as `ReceiptDto` objects.
 
-A receipt contains:
+A receipt is represented as:
 
-```text
-id
-originalFilename
-storagePath
-status
-uploadedAt
-ocrProcessedAt
-groqProcessedAt
-ocrText
-purchasedAt
-merchant
-inn
-totalAmount
-items
-```
-
-Each item contains:
-
-```text
-id
-name
-quantity
-unitPrice
-totalPrice
+```json
+{
+    "id": integer,
+    "originalFilename": string,
+    "storagePath": string,
+    "status": string,
+    "uploadedAt": string,
+    "ocrProcessedAt": string,
+    "groqProcessedAt": string,
+    "ocrText": string,
+    "purchasedAt": string,
+    "merchant": string,
+    "inn": string,
+    "totalAmount": integer,
+    "items": [
+        {
+            "id": integer,
+            "name": string,
+            "quantity": integer,
+            "unitPrice": integer,
+            "totalPrice": integer
+        }
+    ]
+}
 ```
 
 ### Get receipts
 
 ```http
-GET /receipts
+GET /receipts?lastId={lastId}
 ```
 
 Example:
 
 ```bash
-curl http://localhost:8080/receipts
+curl http://localhost:8080/receipts?lastId=10
 ```
 
 Returns a list of receipts together with pagination information:
 
 ```json
 {
-    "receipts": [],
-    "nextLastId": 10,
-    "hasMore": true
+    "receipts": array,
+    "nextLastId": integer,
+    "hasMore": bool
 }
-```
-
-### Pagination
-
-```http
-GET /receipts?lastId=10
 ```
 
 The endpoint uses the ID of the last received receipt as a cursor.
@@ -530,12 +377,6 @@ The response contains:
 * `receipts` — the current page
 * `nextLastId` — ID to use for the next request
 * `hasMore` — whether more receipts are available
-
-Example:
-
-```bash
-curl "http://localhost:8080/receipts?lastId=10"
-```
 
 ### Get a receipt
 
@@ -563,22 +404,14 @@ Example:
 curl -X PATCH http://localhost:8080/receipts/1/cancel
 ```
 
-The cancellation request is asynchronous.
-
+The cancellation request is asynchronous.  
 The controller dispatches a cancellation message to the dedicated cancel queue and immediately returns:
 
 ```text
 202 Accepted
 ```
 
-with an empty JSON array:
-
-```json
-[]
-```
-
-The cancel worker then updates the receipt state inside a transaction using row-level locking.
-
+The cancel worker then updates the receipt state inside a transaction using row-level locking.  
 After cancellation, a Mercure event is published to notify connected clients.
 
 There are no separate HTTP endpoints for OCR or Groq processing. These stages are triggered internally through Symfony Messenger.
@@ -643,116 +476,6 @@ For example:
 
 The exact event payload depends on the event being published.
 
-## Receipt lifecycle
-
-A receipt is processed through several asynchronous stages.
-
-Conceptually:
-
-```text
-pending
-   │
-   ▼
-OCR processing
-   │
-   ▼
-OCR completed
-   │
-   ▼
-Groq processing
-   │
-   ▼
-Groq completed
-```
-
-Cancellation can occur while processing is in progress:
-
-```text
-pending
-   │
-   ├──────────────► canceled
-   │
-   ▼
-OCR processing
-   │
-   ├──────────────► canceled
-   │
-   ▼
-Groq processing
-   │
-   └──────────────► canceled
-```
-
-A canceled receipt must not be overwritten by a successful result from a processing stage that was already running.
-
-Database transactions and pessimistic row locks are used to enforce this rule.
-
-## Project structure
-
-A simplified project structure:
-
-```text
-src/
-├── Controller/
-│   └── ReceiptController.php
-│
-├── Dto/
-│   ├── ReceiptDto.php
-│   └── ReceiptItemDto.php
-│
-├── Entity/
-│   ├── Receipt.php
-│   └── ReceiptItem.php
-│
-├── Enum/
-│   └── ReceiptStatus.php
-│
-├── Message/
-│   ├── ProcessReceiptOcrMessage.php
-│   ├── ProcessReceiptGroqMessage.php
-│   └── ProcessReceiptCancelMessage.php
-│
-├── MessageHandler/
-│   ├── ProcessReceiptOcrMessageHandler.php
-│   ├── ProcessReceiptGroqMessageHandler.php
-│   └── ProcessReceiptCancelMessageHandler.php
-│
-├── Repository/
-│   └── ReceiptRepository.php
-│
-├── Service/
-│   ├── ReceiptService.php
-│   ├── ReceiptAnalyzerInterface.php
-│   └── ...
-│
-└── Storage/
-    ├── FileStorageInterface.php
-    └── ...
-```
-
-Infrastructure configuration:
-
-```text
-config/
-├── packages/
-│   ├── doctrine.yaml
-│   ├── messenger.yaml
-│   ├── monolog.yaml
-│   └── mercure.yaml
-│
-└── services.yaml
-
-docker/
-├── nginx/
-│   └── default.conf
-│
-└── php/
-    └── Dockerfile
-
-compose.yaml
-Makefile
-```
-
 ## Configuration
 
 The main infrastructure variables are configured through environment variables.
@@ -761,7 +484,6 @@ The main infrastructure variables are configured through environment variables.
 
 ```dotenv
 DATABASE_URL="postgresql://symfony:your_postgres_password@database:5432/receiptanalyzer?serverVersion=16&charset=utf8"
-
 POSTGRES_USER=symfony
 POSTGRES_PASSWORD=your_postgres_password
 POSTGRES_DB=receiptanalyzer
@@ -793,11 +515,7 @@ MERCURE_PUBLIC_URL=http://localhost:8081/.well-known/mercure
 MERCURE_JWT_SECRET=your_secret
 ```
 
-### Secrets
-
 API keys and other sensitive configuration should be placed in `.env.local` or another environment-specific secret mechanism.
-
-Secrets should not be committed to Git.
 
 ## Logging
 
@@ -860,12 +578,6 @@ docker compose logs -f
 The number of OCR workers can be changed without modifying the application:
 
 ```bash
-docker compose up --scale ocr-worker=1
-```
-
-or:
-
-```bash
 docker compose up --scale ocr-worker=4
 ```
 
@@ -907,10 +619,10 @@ Show running containers:
 docker compose ps
 ```
 
-Open a shell inside the PHP container:
+Open a bash inside the PHP container:
 
 ```bash
-docker compose exec php sh
+docker compose exec php bash
 ```
 
 Run Symfony commands:
@@ -931,44 +643,33 @@ Inspect registered Messenger handlers:
 docker compose exec php php bin/console debug:messenger
 ```
 
-Inspect application logs:
-
-```bash
-docker compose exec php tail -f var/log/dev.log
-```
-
 ## Development workflow
 
 A typical development workflow is:
-
+1. Start infrastructure and workers
 ```bash
-# Start infrastructure and workers
 make up
 ```
 
-Upload a receipt:
+2. Upload a receipt:
 
 ```bash
 curl -X POST http://localhost:8080/receipts \
-  -F "receipt=@/path/to/receipt.jpg"
+  -F "receipts[]=@/path/to/receipt.jpg"
 ```
 
-Check the created receipt:
+3. Check the created receipt:
 
 ```bash
 curl http://localhost:8080/receipts/1
 ```
 
-Follow worker processing:
+4. Follow worker processing:
 
 ```bash
-docker compose logs -f ocr-worker groq-worker
-```
-
-Follow application logs:
-
-```bash
-docker compose exec ocr-worker tail -f var/log/dev.log
+docker compose logs -f ocr-worker
+# or
+docker compose logs -f groq-worker
 ```
 
 If a receipt needs to be canceled:
@@ -976,8 +677,6 @@ If a receipt needs to be canceled:
 ```bash
 curl -X PATCH http://localhost:8080/receipts/1/cancel
 ```
-
-The cancellation is processed asynchronously by the cancel worker.
 
 ## Technology stack
 
@@ -1036,3 +735,24 @@ The architecture therefore demonstrates a practical form of horizontal worker sc
 ## License
 
 This project is a personal portfolio project.
+
+### Third-party software and services
+
+Receiptor uses the following third-party software and services, which are subject to their respective licenses and terms:
+
+| Technology                                                                    | License / Terms          |
+|-------------------------------------------------------------------------------|--------------------------|
+| [Symfony](https://symfony.com/license)                                        | MIT License              |
+| [PostgreSQL](https://www.postgresql.org/about/licence/)                       | PostgreSQL License       |
+| [Redis](https://redis.io/legal/licenses/)                                     | RSALv2 / SSPLv1 / AGPLv3 |
+| [MinIO](https://docs.min.io/license/)                                         | MinIO Software License   |
+| [Tesseract OCR](https://github.com/tesseract-ocr/tesseract/blob/main/LICENSE) | Apache License 2.0       |
+| [Mercure](https://github.com/dunglas/mercure)                                 | MIT License              |
+| [Nginx](https://nginx.org/en/docs/license.html)                               | 2-clause BSD License     |
+| [Docker Compose](https://github.com/docker/compose/blob/main/LICENSE)         | Apache License 2.0       |
+| [Monolog](https://github.com/Seldaek/monolog/blob/main/LICENSE)               | MIT License              |
+| [Groq](https://console.groq.com/docs/legal/services-agreement)                | Groq Services Agreement  |
+
+The Receiptor source code does not grant any additional rights to use third-party software, services, trademarks, or APIs. Third-party components and services remain subject to their respective licenses, terms, and usage conditions.
+
+Users deploying or modifying Receiptor are responsible for complying with the applicable licenses and terms of the third-party software and services they use.

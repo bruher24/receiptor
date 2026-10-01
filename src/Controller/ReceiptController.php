@@ -46,7 +46,7 @@ final class ReceiptController extends AbstractController
         MessageBusInterface $bus
     ): Response
     {
-        $files = $request->files->all();
+        $files = $request->files->all('receipts');
 
         if (empty($files)) {
             throw $this->createNotFoundException('Файл не загружен');
