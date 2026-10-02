@@ -3,6 +3,7 @@
 namespace App\Service;
 
 use App\Entity\Receipt;
+use App\Metrics\ReceiptMetrics;
 use App\Repository\ReceiptRepository;
 use App\Storage\FileStorageInterface;
 use DateTimeImmutable;
@@ -14,7 +15,8 @@ final readonly class ReceiptService
     public function __construct(
         private FileStorageInterface   $storage,
         private EntityManagerInterface $entityManager,
-        private ReceiptRepository      $receiptRepository
+        private ReceiptRepository      $receiptRepository,
+        private ReceiptMetrics         $receiptMetrics
     )
     {
     }
@@ -54,6 +56,8 @@ final readonly class ReceiptService
 
         $this->entityManager->persist($receipt);
         $this->entityManager->flush();
+
+        $this->receiptMetrics->receiptUploaded();
 
         return $receipt;
     }

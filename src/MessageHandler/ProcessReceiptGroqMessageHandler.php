@@ -6,6 +6,7 @@ use App\Analysis\ReceiptAnalyzerInterface;
 use App\Entity\ReceiptItem;
 use App\Enum\ReceiptStatus;
 use App\Message\ProcessReceiptGroqMessage;
+use App\Metrics\ReceiptMetrics;
 use App\Publish\HubManager;
 use App\Repository\ReceiptRepository;
 use DateTimeImmutable;
@@ -22,7 +23,8 @@ final readonly class ProcessReceiptGroqMessageHandler
         private ReceiptAnalyzerInterface $analyzer,
         private EntityManagerInterface   $entityManager,
         private HubManager               $hub,
-        private LoggerInterface          $logger
+        private LoggerInterface          $logger,
+        private ReceiptMetrics           $receiptMetrics
     )
     {
     }
@@ -90,6 +92,8 @@ final readonly class ProcessReceiptGroqMessageHandler
         if (!$processed) {
             return;
         }
+
+        $this->receiptMetrics->receiptProcessed();
 
         $this->hub->publish('receipts', [
             'type' => 'receipt.processed',

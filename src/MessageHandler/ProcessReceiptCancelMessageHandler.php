@@ -4,6 +4,7 @@ namespace App\MessageHandler;
 
 use App\Enum\ReceiptStatus;
 use App\Message\ProcessReceiptCancelMessage;
+use App\Metrics\ReceiptMetrics;
 use App\Publish\HubManager;
 use App\Repository\ReceiptRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -16,7 +17,8 @@ final readonly class ProcessReceiptCancelMessageHandler
     public function __construct(
         private ReceiptRepository      $receipts,
         private EntityManagerInterface $entityManager,
-        private HubManager             $hub
+        private HubManager             $hub,
+        private ReceiptMetrics         $receiptMetrics
     )
     {
     }
@@ -36,6 +38,8 @@ final readonly class ProcessReceiptCancelMessageHandler
                 $this->entityManager->flush();
             }
         );
+
+        $this->receiptMetrics->receiptCanceled();
 
         $this->hub->publish('receipts', [
             'type' => 'receipt.cancelled',
