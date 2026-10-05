@@ -177,6 +177,7 @@ services:
         restart: unless-stopped
         environment:
             REDIS_ADDR: "redis://redis:6379"
+            REDIS_EXPORTER_CHECK_SINGLE_STREAMS: "messages_ocr,messages_groq,messages_cancel"
         depends_on:
             - redis
 

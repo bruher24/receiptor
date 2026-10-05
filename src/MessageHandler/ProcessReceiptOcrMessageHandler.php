@@ -5,6 +5,7 @@ namespace App\MessageHandler;
 use App\Enum\ReceiptStatus;
 use App\Message\ProcessReceiptGroqMessage;
 use App\Message\ProcessReceiptOcrMessage;
+use App\Metrics\ReceiptMetrics;
 use App\Ocr\OcrInterface;
 use App\Repository\ReceiptRepository;
 use App\Storage\FileStorageInterface;
@@ -24,13 +25,15 @@ final readonly class ProcessReceiptOcrMessageHandler
         private OcrInterface           $ocr,
         private EntityManagerInterface $entityManager,
         private MessageBusInterface    $bus,
-        private LoggerInterface        $logger
+        private LoggerInterface        $logger,
+        private ReceiptMetrics         $receiptMetrics
     )
     {
     }
 
     public function __invoke(ProcessReceiptOcrMessage $message): void
     {
+        $start = time();
         $receipt = $this->receipts->find($message->receiptId);
 
         if ($receipt === null) {
@@ -80,6 +83,9 @@ final readonly class ProcessReceiptOcrMessageHandler
             if (!$processed) {
                 return;
             }
+
+            $ocrProcessingDuration = time() - $start;
+            $this->receiptMetrics->observeOcrProcessingDuration($ocrProcessingDuration);
 
             $this->bus->dispatch(
                 new ProcessReceiptGroqMessage($receipt->getId())

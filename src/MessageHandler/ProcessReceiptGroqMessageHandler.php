@@ -31,6 +31,7 @@ final readonly class ProcessReceiptGroqMessageHandler
 
     public function __invoke(ProcessReceiptGroqMessage $message): void
     {
+        $start = time();
         $receipt = $this->receipts->find($message->receiptId);
 
         if ($receipt === null) {
@@ -93,7 +94,11 @@ final readonly class ProcessReceiptGroqMessageHandler
             return;
         }
 
+        $groqProcessingDuration = time() - $start;
         $this->receiptMetrics->receiptProcessed();
+        $this->receiptMetrics->observeGroqProcessingDuration($groqProcessingDuration);
+        $fullProcessingDuration = $receipt->getGroqProcessedAt()->getTimestamp() - $receipt->getUploadedAt()->getTimestamp();
+        $this->receiptMetrics->observeFullProcessingDuration($fullProcessingDuration);
 
         $this->hub->publish('receipts', [
             'type' => 'receipt.processed',

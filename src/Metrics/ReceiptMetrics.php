@@ -10,7 +10,9 @@ final class ReceiptMetrics
     private Counter $uploaded;
     private Counter $processed;
     private Counter $canceled;
-    private Histogram $processingDuration;
+    private Histogram $ocrProcessingDuration;
+    private Histogram $groqProcessingDuration;
+    private Histogram $fullProcessingDuration;
 
     public function __construct(MetricsRegistry $metricsRegistry)
     {
@@ -34,10 +36,22 @@ final class ReceiptMetrics
             'Total number of canceled receipts',
         );
 
-        $this->processingDuration = $registry->getOrRegisterHistogram(
+        $this->ocrProcessingDuration = $registry->getOrRegisterHistogram(
             'receiptor',
-            'receipt_processing_duration_seconds',
-            'Time spent processing a receipt in seconds',
+            'receipt_ocr_processing_duration_seconds',
+            'Time spent processing a receipt by OCR in seconds',
+        );
+
+        $this->groqProcessingDuration = $registry->getOrRegisterHistogram(
+            'receiptor',
+            'receipt_groq_processing_duration_seconds',
+            'Time spent processing a receipt by Groq in seconds',
+        );
+
+        $this->fullProcessingDuration = $registry->getOrRegisterHistogram(
+            'receiptor',
+            'receipt_full_processing_duration_seconds',
+            'Time spent processing a receipt total in seconds',
         );
     }
 
@@ -56,8 +70,18 @@ final class ReceiptMetrics
         $this->canceled->inc();
     }
 
-    public function observeProcessingDuration(float $seconds): void
+    public function observeOcrProcessingDuration(float $seconds): void
     {
-        $this->processingDuration->observe($seconds);
+        $this->ocrProcessingDuration->observe($seconds);
+    }
+
+    public function observeGroqProcessingDuration(float $seconds): void
+    {
+        $this->groqProcessingDuration->observe($seconds);
+    }
+
+    public function observeFullProcessingDuration(float $seconds): void
+    {
+        $this->fullProcessingDuration->observe($seconds);
     }
 }
