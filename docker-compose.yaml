@@ -16,7 +16,9 @@ services:
         build:
             context: .
             dockerfile: docker/php/Dockerfile
-        command: php bin/console messenger:consume ocr --time-limit=3600 -vv
+        command: >
+            sh -c 'export MESSENGER_CONSUMER_NAME="$$HOSTNAME" &&
+            php bin/console messenger:consume ocr --time-limit=3600 -vv'
         volumes:
             - .:/var/www/html
             - ocr_worker_var:/var/www/html/var
@@ -30,7 +32,9 @@ services:
         build:
             context: .
             dockerfile: docker/php/Dockerfile
-        command: php bin/console messenger:consume groq --time-limit=3600 -vv
+        command: >
+            sh -c 'export MESSENGER_CONSUMER_NAME="$$HOSTNAME" &&
+            php bin/console messenger:consume groq --time-limit=3600 -vv'
         volumes:
             - .:/var/www/html
             - groq_worker_var:/var/www/html/var
@@ -44,7 +48,9 @@ services:
         build:
             context: .
             dockerfile: docker/php/Dockerfile
-        command: php bin/console messenger:consume cancel --time-limit=3600 -vv
+        command: >
+            sh -c 'export MESSENGER_CONSUMER_NAME="$$HOSTNAME" &&
+            php bin/console messenger:consume cancel --time-limit=3600 -vv'
         volumes:
             - .:/var/www/html
             - cancel_worker_var:/var/www/html/var

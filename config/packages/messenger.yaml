@@ -9,14 +9,17 @@ framework:
                 dsn: '%env(MESSENGER_OCR_TRANSPORT_DSN)%'
                 options:
                     group: ocr
+                    consumer: '%env(MESSENGER_CONSUMER_NAME)%'
             groq:
                 dsn: '%env(MESSENGER_GROQ_TRANSPORT_DSN)%'
                 options:
                     group: groq
+                    consumer: '%env(MESSENGER_CONSUMER_NAME)%'
             cancel:
                 dsn: '%env(MESSENGER_CANCEL_TRANSPORT_DSN)%'
                 options:
                     group: cancel
+                    consumer: '%env(MESSENGER_CONSUMER_NAME)%'
             failed: 'doctrine://default?queue_name=failed'
             sync: 'sync://'
 

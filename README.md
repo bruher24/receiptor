@@ -141,6 +141,12 @@ The following services run inside Docker:
 * MinIO
 * Mercure
 * Tesseract OCR
+* Prometheus
+* Grafana
+* cAdvisor
+* Node Exporter
+* PostgreSQL Exporter
+* Redis Exporter
 
 A Groq API key is required for LLM-based receipt analysis.
 
@@ -292,6 +298,18 @@ MinIO console:
 
 ```text
 http://localhost:9001
+```
+
+Grafana:
+
+```text
+http://localhost:8008
+```
+
+Prometheus:
+
+```text
+http://localhost:9090
 ```
 
 ## Useful Make commands
@@ -518,6 +536,113 @@ For example:
 ```
 
 The exact event payload depends on the event being published.
+
+## Monitoring
+
+Receiptor includes a monitoring stack based on Prometheus and Grafana.
+
+Prometheus collects application and infrastructure metrics, while Grafana provides dashboards for monitoring receipt processing, asynchronous queues, workers, and container resources.
+
+The monitoring stack includes:
+
+- Prometheus
+- Grafana
+- cAdvisor
+- Node Exporter
+- PostgreSQL Exporter
+- Redis Exporter
+
+### Application metrics
+
+The application exposes Prometheus metrics for:
+
+- uploaded receipts
+- processed receipts
+- canceled receipts
+- OCR processing duration
+- Groq processing duration
+- full receipt processing duration
+
+Processing duration metrics are represented as Prometheus histograms, allowing Grafana to display both average processing time and percentile-based latency such as P95.
+
+### Queue metrics
+
+Redis Stream metrics are collected through Redis Exporter.
+
+The dashboard monitors:
+
+- Redis Stream backlog
+- pending messages
+- active consumers
+- message ingestion rate
+
+Separate queues are monitored for:
+
+- OCR
+- Groq
+- cancellation
+
+The queue backlog is measured using Redis consumer-group lag rather than the physical Redis Stream length.
+
+### Infrastructure metrics
+
+cAdvisor provides container-level resource metrics such as:
+
+- CPU usage
+- memory usage
+
+PostgreSQL Exporter provides PostgreSQL database metrics.
+
+Redis Exporter provides Redis and Redis Stream metrics.
+
+### Grafana dashboard
+
+The main Grafana dashboard contains the following sections:
+
+1. **Application**
+    - uploaded receipts
+    - processed receipts
+    - canceled receipts
+    - processing throughput
+
+2. **Processing latency**
+    - average OCR duration
+    - P95 OCR duration
+    - average Groq duration
+    - P95 Groq duration
+    - average full processing duration
+    - P95 full processing duration
+
+3. **Queues and workers**
+    - queue backlog
+    - pending messages
+    - active consumers
+    - messages per second
+
+4. **Infrastructure**
+    - container CPU usage
+    - container memory usage
+
+5. **Redis and PostgreSQL**
+    - Redis memory usage
+    - Redis operations
+    - PostgreSQL connections
+
+Grafana is intended as the operational interface for observing the application. It is available separately from the Receiptor API.
+
+Grafana:
+
+```text
+http://localhost:8008
+```
+
+Prometheus:
+
+```text
+http://localhost:9090
+```
+
+The dashboard can be used during development and load testing to observe how queue depth, worker count, processing latency, and container resource usage change under load.
 
 ## Logging
 
