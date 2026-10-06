@@ -174,7 +174,7 @@ services:
         image: prometheuscommunity/postgres-exporter:latest
         restart: unless-stopped
         environment:
-            DATA_SOURCE_NAME: "postgresql://symfony:your_postgres_password@database:5432/receiptanalyzer?sslmode=disable"
+            DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}?sslmode=disable"
         depends_on:
             - database
 
