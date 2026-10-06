@@ -162,14 +162,10 @@ cd receiptor
 Create the environment configuration:
 
 ```bash
-cp .env .env.local
+cp .env.example .env.local
 ```
 
-Add the required API credentials to `.env.local`:
-
-```dotenv
-GROQ_API_KEY=your_groq_api_key
-```
+Replace the `change_me` placeholders with your local credentials, including `GROQ_API_KEY`.
 
 ## Configuration
 
