@@ -162,7 +162,7 @@ cd receiptor
 Create the environment configuration:
 
 ```bash
-cp .env.example .env.local
+cp .env.example .env
 ```
 
 Replace the `change_me` placeholders with your local credentials, including `GROQ_API_KEY`.
@@ -181,11 +181,14 @@ POSTGRES_DB=receiptanalyzer
 ```
 
 ### MinIO
+Use the same values for `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` and `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`.
 
 ```dotenv
 MINIO_ENDPOINT=http://minio:9000
 MINIO_ACCESS_KEY=your_minio_access_key
 MINIO_SECRET_KEY=your_minio_secret_key
+MINIO_ROOT_USER=your_minio_access_key
+MINIO_ROOT_PASSWORD=your_minio_secret_key
 MINIO_BUCKET=receipts
 MINIO_REGION=us-east-1
 ```
