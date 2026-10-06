@@ -9,3 +9,8 @@
 /vendor/
 .idea
 ###< symfony/framework-bundle ###
+
+# Environment files
+/.env
+/.env.*
+!/.env.example
