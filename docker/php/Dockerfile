@@ -1,4 +1,4 @@
-FROM php:8.4-fpm
+FROM php:8.4.26-fpm-trixie
 
 RUN apt-get update && apt-get install -y \
     git \
@@ -16,10 +16,10 @@ RUN docker-php-ext-install \
     pdo_pgsql \
     zip
 
-RUN pecl install redis \
+RUN pecl install redis-6.3.0 \
     && docker-php-ext-enable redis
 
-COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+COPY --from=composer:2.10.3 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 

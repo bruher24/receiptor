@@ -145,16 +145,8 @@ PROMPT,
             ],
         ]);
 
-        try {
-            $data = $response->toArray();
-        } catch (\Throwable $e) {
-            dump($response->getStatusCode());
-            dump($response->getContent(false));
-            throw $e;
-        }
-
+        $data = $response->toArray();
         $content = $data['choices'][0]['message']['content'];
-
         $result = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
 
         return $this->createResult($result);

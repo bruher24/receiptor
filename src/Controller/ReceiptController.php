@@ -7,10 +7,12 @@ use App\Entity\Receipt;
 use App\Message\ProcessReceiptCancelMessage;
 use App\Message\ProcessReceiptOcrMessage;
 use App\Service\ReceiptService;
+use InvalidArgumentException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Attribute\MapQueryParameter;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Attribute\Route;
 
@@ -49,13 +51,21 @@ final class ReceiptController extends AbstractController
         $files = $request->files->all('receipts');
 
         if (empty($files)) {
-            throw $this->createNotFoundException('Файл не загружен');
+            throw new BadRequestHttpException('Файл не загружен');
+        }
+
+        if (count($files) > 10) {
+            throw new BadRequestHttpException('Можно загрузить не более 10 файлов за один запрос');
         }
 
         $receipts = [];
 
         foreach ($files as $file) {
-            $receipt = $receiptService->createFromUpload($file);
+            try {
+                $receipt = $receiptService->createFromUpload($file);
+            } catch (InvalidArgumentException $e) {
+                throw new BadRequestHttpException($e->getMessage(), $e);
+            }
 
             $bus->dispatch(
                 new ProcessReceiptOcrMessage($receipt->getId())

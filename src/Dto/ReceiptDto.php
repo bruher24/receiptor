@@ -9,10 +9,9 @@ use DateTimeImmutable;
 final readonly class ReceiptDto
 {
     public function __construct(
-        public ?int               $id = null,
         public string             $originalFilename,
-        public string             $storagePath,
         public ReceiptStatus      $status,
+        public ?int               $id = null,
         public ?DateTimeImmutable $uploadedAt = null,
         public ?DateTimeImmutable $ocrProcessedAt = null,
         public ?DateTimeImmutable $groqProcessedAt = null,
@@ -21,7 +20,7 @@ final readonly class ReceiptDto
         public ?string            $merchant = null,
         public ?string            $inn = null,
         public ?int               $totalAmount = null,
-        public array              $items
+        public array              $items = [],
     )
     {
     }
@@ -29,19 +28,18 @@ final readonly class ReceiptDto
     public static function fromEntity(Receipt $receipt): self
     {
         return new self(
-            $receipt->getId(),
-            $receipt->getOriginalFilename(),
-            $receipt->getStoragePath(),
-            $receipt->getStatus(),
-            $receipt->getUploadedAt(),
-            $receipt->getOcrProcessedAt(),
-            $receipt->getGroqProcessedAt(),
-            $receipt->getOcrText(),
-            $receipt->getPurchasedAt(),
-            $receipt->getMerchant(),
-            $receipt->getInn(),
-            $receipt->getTotalAmount(),
-            array_map(
+            originalFilename: $receipt->getOriginalFilename(),
+            status: $receipt->getStatus(),
+            id: $receipt->getId(),
+            uploadedAt: $receipt->getUploadedAt(),
+            ocrProcessedAt: $receipt->getOcrProcessedAt(),
+            groqProcessedAt: $receipt->getGroqProcessedAt(),
+            ocrText: $receipt->getOcrText(),
+            purchasedAt: $receipt->getPurchasedAt(),
+            merchant: $receipt->getMerchant(),
+            inn: $receipt->getInn(),
+            totalAmount: $receipt->getTotalAmount(),
+            items: array_map(
                 fn($receiptItem) => ReceiptItemDto::fromEntity($receiptItem),
                 $receipt->getItems()->toArray()
             ),

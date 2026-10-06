@@ -11,6 +11,8 @@ The project is designed as a practical backend project demonstrating asynchronou
 ## Features
 
 * Upload one or multiple receipt images
+* Upload up to 10 receipt images in a single request
+* Validate uploaded files before processing
 * Store uploaded files in MinIO
 * OCR processing with Tesseract
 * Receipt analysis with Groq
@@ -39,7 +41,7 @@ The project is designed as a practical backend project demonstrating asynchronou
 ## Architecture
 
 <p align="center">
-    <img src="docs/architecture.png" alt="Architecture" width="1200">
+   <img src="docs/architecture.png" alt="Architecture" width="1200">
 </p>
 
 ## Asynchronous processing
@@ -133,20 +135,24 @@ The project requires:
 
 The following services run inside Docker:
 
-* PHP 8.4
-* Symfony 8.1
-* Nginx
-* PostgreSQL 16
-* Redis 8
-* MinIO
-* Mercure
-* Tesseract OCR
-* Prometheus
-* Grafana
-* cAdvisor
-* Node Exporter
-* PostgreSQL Exporter
-* Redis Exporter
+| Service             | Version                        |
+|---------------------|--------------------------------|
+| PHP                 | 8.4.26                         |
+| Symfony             | 8.1.7                          |
+| Nginx               | 1.29.5                         |
+| PostgreSQL          | 16                             |
+| Redis               | 8                              |
+| MinIO               | `RELEASE.2025-04-22T22-12-26Z` |
+| Mercure             | v0.24                          |
+| Tesseract OCR       | system package                 |
+| Prometheus          | 3.15.0                         |
+| Grafana             | 13.2.3                         |
+| cAdvisor            | v0.55.1                        |
+| Node Exporter       | v1.12.1                        |
+| PostgreSQL Exporter | v0.20.1                        |
+| Redis Exporter      | v1.93.0                        |
+
+Symfony dependencies are installed through Composer according to `composer.lock`.
 
 A Groq API key is required for LLM-based receipt analysis.
 
@@ -209,7 +215,7 @@ MERCURE_PUBLIC_URL=http://localhost:8081/.well-known/mercure
 MERCURE_JWT_SECRET=your_secret
 ```
 
-API keys and other sensitive configuration should be placed in `.env.local` or another environment-specific secret mechanism.
+API keys and other sensitive configuration should be stored in the local `.env` file or another environment-specific secret mechanism. The `.env` file is ignored by Git and must not be committed.
 
 ## Build
 
@@ -358,6 +364,28 @@ POST /receipts
 ```
 
 Accepts one or multiple uploaded receipt images.
+A maximum of **10 files** can be uploaded in a single request.
+
+Each uploaded file must satisfy the following requirements:
+
+| Requirement                         | Limit                     |
+|-------------------------------------|---------------------------|
+| Maximum number of files per request | 10                        |
+| Maximum file size                   | 2 MiB per file            |
+| Allowed MIME types                  | `image/jpeg`, `image/png` |
+| Maximum original filename length    | 255 characters            |
+
+The application validates every uploaded file before creating any receipt records. If at least one file fails
+validation, the request is rejected and no receipts are created from that request.
+
+Validation includes:
+
+* checking that the upload completed successfully;
+* checking the individual file size;
+* checking the detected MIME type;
+* checking the original filename length.
+
+The application also performs the same validation when creating a receipt as a defensive measure.
 
 Example with one file:
 
@@ -375,7 +403,7 @@ curl -X POST http://localhost:8080/receipts \
   -F "receipts[]=@/path/to/receipt3.jpg"
 ```
 
-All uploaded files must be provided using the receipts[] field.  
+All uploaded files must be provided using the `receipts[]` field.  
 The request creates the receipts, stores the files in MinIO, and dispatches OCR messages for asynchronous processing.  
 The response contains the receipts created by the request as `ReceiptDto` objects.
 
@@ -385,7 +413,6 @@ A receipt is represented as:
 {
     "id": integer,
     "originalFilename": string,
-    "storagePath": string,
     "status": string,
     "uploadedAt": string,
     "ocrProcessedAt": string,
@@ -712,6 +739,8 @@ docker compose up --scale ocr-worker=4
 Receipt processing consists of operations with different performance characteristics.
 
 OCR is CPU-intensive and can be executed by multiple workers:
+
+[//]: # (TODO: добавить диаграму или переписать блок без схем)
 
 ```text
 OCR queue
