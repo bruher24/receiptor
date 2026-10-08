@@ -35,8 +35,9 @@ scrape_configs:
             -   targets:
                     - postgres-exporter:9187
 
-    # Redis
-    -   job_name: redis
+    # RabbitMQ
+    -   job_name: rabbitmq
+        metrics_path: /metrics/per-object
         static_configs:
             -   targets:
-                    - redis-exporter:9121
+                    - rabbitmq:15692

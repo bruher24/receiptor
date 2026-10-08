@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y \
     libicu-dev \
     libzip-dev \
     libpq-dev \
+    librabbitmq-dev \
     tesseract-ocr \
     tesseract-ocr-rus \
     tesseract-ocr-eng \
@@ -15,6 +16,9 @@ RUN docker-php-ext-install \
     intl \
     pdo_pgsql \
     zip
+
+RUN pecl install amqp \
+    && docker-php-ext-enable amqp
 
 RUN pecl install redis-6.3.0 \
     && docker-php-ext-enable redis

@@ -8,18 +8,37 @@ framework:
             ocr:
                 dsn: '%env(MESSENGER_OCR_TRANSPORT_DSN)%'
                 options:
-                    group: ocr
-                    consumer: '%env(MESSENGER_CONSUMER_NAME)%'
+                    exchange:
+                        name: ocr
+                        type: direct
+                        default_publish_routing_key: ocr
+                    queues:
+                        ocr:
+                            binding_keys:
+                                - ocr
             groq:
                 dsn: '%env(MESSENGER_GROQ_TRANSPORT_DSN)%'
                 options:
-                    group: groq
-                    consumer: '%env(MESSENGER_CONSUMER_NAME)%'
+                    exchange:
+                        name: groq
+                        type: direct
+                        default_publish_routing_key: groq
+                    queues:
+                        groq:
+                            binding_keys:
+                                - groq
+
             cancel:
                 dsn: '%env(MESSENGER_CANCEL_TRANSPORT_DSN)%'
                 options:
-                    group: cancel
-                    consumer: '%env(MESSENGER_CONSUMER_NAME)%'
+                    exchange:
+                        name: cancel
+                        type: direct
+                        default_publish_routing_key: cancel
+                    queues:
+                        cancel:
+                            binding_keys:
+                                - cancel
             failed: 'doctrine://default?queue_name=failed'
             sync: 'sync://'
 

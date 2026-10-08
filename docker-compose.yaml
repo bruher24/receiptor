@@ -9,56 +9,50 @@ services:
         depends_on:
             database:
                 condition: service_healthy
-            redis:
-                condition: service_started
+            rabbitmq:
+                condition: service_healthy
 
     ocr-worker:
         build:
             context: .
             dockerfile: docker/php/Dockerfile
-        command: >
-            sh -c 'export MESSENGER_CONSUMER_NAME="$$HOSTNAME" &&
-            php bin/console messenger:consume ocr --time-limit=3600 -vv'
+        command: php bin/console messenger:consume ocr --time-limit=3600 -vv
         volumes:
             - .:/var/www/html
             - ocr_worker_var:/var/www/html/var
         depends_on:
             database:
                 condition: service_healthy
-            redis:
-                condition: service_started
+            rabbitmq:
+                condition: service_healthy
 
     groq-worker:
         build:
             context: .
             dockerfile: docker/php/Dockerfile
-        command: >
-            sh -c 'export MESSENGER_CONSUMER_NAME="$$HOSTNAME" &&
-            php bin/console messenger:consume groq --time-limit=3600 -vv'
+        command: php bin/console messenger:consume groq --time-limit=3600 -vv
         volumes:
             - .:/var/www/html
             - groq_worker_var:/var/www/html/var
         depends_on:
             database:
                 condition: service_healthy
-            redis:
-                condition: service_started
+            rabbitmq:
+                condition: service_healthy
 
     cancel-worker:
         build:
             context: .
             dockerfile: docker/php/Dockerfile
-        command: >
-            sh -c 'export MESSENGER_CONSUMER_NAME="$$HOSTNAME" &&
-            php bin/console messenger:consume cancel --time-limit=3600 -vv'
+        command: php bin/console messenger:consume cancel --time-limit=3600 -vv
         volumes:
             - .:/var/www/html
             - cancel_worker_var:/var/www/html/var
         depends_on:
             database:
                 condition: service_healthy
-            redis:
-                condition: service_started
+            rabbitmq:
+                condition: service_healthy
 
     nginx:
         image: nginx:1.29.5-alpine
@@ -109,6 +103,22 @@ services:
         volumes:
             - redis_data:/data
 
+    rabbitmq:
+        image: rabbitmq:4-management
+        environment:
+            RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+            RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+        ports:
+            - "5672:5672"
+            - "15672:15672"
+        volumes:
+            - rabbitmq_data:/var/lib/rabbitmq
+        healthcheck:
+            test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
+            interval: 5s
+            timeout: 5s
+            retries: 10
+
     mercure:
         image: dunglas/mercure:v0.24
         environment:
@@ -139,7 +149,6 @@ services:
         depends_on:
             - cadvisor
             - postgres-exporter
-            - redis-exporter
 
     grafana:
         image: grafana/grafana:13.2.3
@@ -149,6 +158,7 @@ services:
         volumes:
             - grafana_data:/var/lib/grafana
             - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+            - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
         depends_on:
             - prometheus
 
@@ -178,15 +188,6 @@ services:
         depends_on:
             - database
 
-    redis-exporter:
-        image: oliver006/redis_exporter:v1.93.0
-        restart: unless-stopped
-        environment:
-            REDIS_ADDR: "redis://redis:6379"
-            REDIS_EXPORTER_CHECK_SINGLE_STREAMS: "messages_ocr,messages_groq,messages_cancel"
-        depends_on:
-            - redis
-
 volumes:
     ###> doctrine/doctrine-bundle ###
     database_data:
@@ -201,3 +202,4 @@ volumes:
     ocr_worker_var:
     groq_worker_var:
     cancel_worker_var:
+    rabbitmq_data:

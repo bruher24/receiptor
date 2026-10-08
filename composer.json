@@ -12,6 +12,7 @@
         "doctrine/doctrine-migrations-bundle": "^4.0",
         "doctrine/orm": "^3.7",
         "promphp/prometheus_client_php": "^2.15",
+        "symfony/amqp-messenger": "8.1.*",
         "symfony/console": "8.1.*",
         "symfony/dotenv": "8.1.*",
         "symfony/flex": "^2",
