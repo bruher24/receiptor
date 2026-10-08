@@ -738,34 +738,11 @@ docker compose up --scale ocr-worker=4
 
 Receipt processing consists of operations with different performance characteristics.
 
-OCR is CPU-intensive and can be executed by multiple workers:
+OCR is CPU-intensive and can be executed by multiple workers. Multiple OCR workers can consume messages from the same Redis transport concurrently, allowing OCR processing to scale horizontally.
 
-[//]: # (TODO: добавить диаграму или переписать блок без схем)
+Groq requests are external network operations and are isolated into a separate queue with a dedicated worker. This keeps external API processing independent of CPU-intensive OCR processing.
 
-```text
-OCR queue
-   │
-   ├── OCR worker
-   ├── OCR worker
-   ├── OCR worker
-   └── OCR worker
-```
-
-Groq requests are external network operations and are isolated into a separate queue:
-
-```text
-Groq queue
-   │
-   └── Groq worker
-```
-
-Cancellation is also isolated:
-
-```text
-Cancel queue
-   │
-   └── Cancel worker
-```
+Cancellation is also isolated into a dedicated queue and worker. This allows cancellation requests to be processed independently of OCR and Groq workloads.
 
 This separation allows each processing stage to be scaled independently.
 
@@ -781,18 +758,24 @@ This project is a personal portfolio project.
 
 Receiptor uses the following third-party software and services, which are subject to their respective licenses and terms:
 
-| Technology                                                                    | License / Terms          |
+| Technology | License / Terms |
 |-------------------------------------------------------------------------------|--------------------------|
-| [Symfony](https://symfony.com/license)                                        | MIT License              |
-| [PostgreSQL](https://www.postgresql.org/about/licence/)                       | PostgreSQL License       |
-| [Redis](https://redis.io/legal/licenses/)                                     | RSALv2 / SSPLv1 / AGPLv3 |
-| [MinIO](https://docs.min.io/license/)                                         | MinIO Software License   |
-| [Tesseract OCR](https://github.com/tesseract-ocr/tesseract/blob/main/LICENSE) | Apache License 2.0       |
-| [Mercure](https://github.com/dunglas/mercure)                                 | MIT License              |
-| [Nginx](https://nginx.org/en/docs/license.html)                               | 2-clause BSD License     |
-| [Docker Compose](https://github.com/docker/compose/blob/main/LICENSE)         | Apache License 2.0       |
-| [Monolog](https://github.com/Seldaek/monolog/blob/main/LICENSE)               | MIT License              |
-| [Groq](https://console.groq.com/docs/legal/services-agreement)                | Groq Services Agreement  |
+| [Symfony](https://symfony.com/license) | MIT License |
+| [PostgreSQL](https://www.postgresql.org/about/licence/) | PostgreSQL License |
+| [Redis](https://redis.io/legal/licenses/) | RSALv2 / SSPLv1 / AGPLv3 |
+| [MinIO](https://docs.min.io/license/) | MinIO Software License |
+| [Tesseract OCR](https://github.com/tesseract-ocr/tesseract/blob/main/LICENSE) | Apache License 2.0 |
+| [Mercure](https://github.com/dunglas/mercure) | MIT License |
+| [Nginx](https://nginx.org/en/docs/license.html) | 2-clause BSD License |
+| [Docker Compose](https://github.com/docker/compose/blob/main/LICENSE) | Apache License 2.0 |
+| [Monolog](https://github.com/Seldaek/monolog/blob/main/LICENSE) | MIT License |
+| [Prometheus](https://github.com/prometheus/prometheus/blob/main/LICENSE) | Apache License 2.0 |
+| [Grafana](https://github.com/grafana/grafana/blob/main/LICENSE) | AGPLv3 |
+| [cAdvisor](https://github.com/google/cadvisor/blob/master/LICENSE) | Apache License 2.0 |
+| [Node Exporter](https://github.com/prometheus/node_exporter/blob/master/LICENSE) | Apache License 2.0 |
+| [PostgreSQL Exporter](https://github.com/prometheus-community/postgres_exporter/blob/master/LICENSE) | Apache License 2.0 |
+| [Redis Exporter](https://github.com/oliver006/redis_exporter/blob/master/LICENSE) | MIT License |
+| [Groq](https://console.groq.com/docs/legal/services-agreement) | Groq Services Agreement |
 
 The Receiptor source code does not grant any additional rights to use third-party software, services, trademarks, or APIs. Third-party components and services remain subject to their respective licenses, terms, and usage conditions.
 
