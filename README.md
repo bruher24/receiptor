@@ -4,7 +4,7 @@ Receiptor is a personal receipt analysis service built with Symfony 8.
 
 The application accepts receipt images, stores them in MinIO, extracts text using Tesseract OCR, analyzes the OCR result with Groq, and saves structured receipt data in PostgreSQL.
 
-Processing is asynchronous and split into independent stages using Symfony Messenger and Redis. Multiple OCR workers can process receipts concurrently, while Groq and cancellation have their own dedicated workers and queues.
+Processing is asynchronous and split into independent stages using Symfony Messenger and RabbitMQ. Multiple OCR workers can process receipts concurrently, while Groq and cancellation have their own dedicated workers and queues.
 
 The project is designed as a practical backend project demonstrating asynchronous processing, queue-based concurrency, external services, object storage, OCR, LLM integration, transactional state changes, row-level locking, real-time events, and containerized infrastructure.
 
@@ -26,7 +26,7 @@ The project is designed as a practical backend project demonstrating asynchronou
     * unit price
     * total item price
 * Asynchronous processing with Symfony Messenger
-* Redis-based message transports
+* RabbitMQ-based message transports
 * Separate queues for OCR, Groq, and cancellation
 * Multiple OCR workers running concurrently
 * Asynchronous receipt cancellation
@@ -47,12 +47,12 @@ The project is designed as a practical backend project demonstrating asynchronou
 ## Asynchronous processing
 
 Symfony Messenger is used to decouple HTTP requests from potentially slow receipt processing.  
-The application uses three independent Redis transports:
+The application uses three independent RabbitMQ transports:
 
 ```dotenv
-MESSENGER_OCR_TRANSPORT_DSN=redis://redis:6379/messages_ocr
-MESSENGER_GROQ_TRANSPORT_DSN=redis://redis:6379/messages_groq
-MESSENGER_CANCEL_TRANSPORT_DSN=redis://redis:6379/messages_cancel
+MESSENGER_OCR_TRANSPORT_DSN="amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/%2f"
+MESSENGER_GROQ_TRANSPORT_DSN="amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/%2f"
+MESSENGER_CANCEL_TRANSPORT_DSN="amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/%2f"
 ```
 
 The corresponding workers are:
@@ -72,7 +72,7 @@ For example, OCR is CPU-intensive and can be scaled independently:
 docker compose up --scale ocr-worker=4 --scale groq-worker=1 --scale cancel-worker=1
 ```
 
-Multiple workers consuming the same Redis transport act as competing consumers: each message is processed by one available worker.
+Multiple workers consuming the same RabbitMQ queue act as competing consumers: each message is delivered to one available consumer.
 
 ## Concurrency and cancellation
 
@@ -142,6 +142,7 @@ The following services run inside Docker:
 | Nginx               | 1.29.5                         |
 | PostgreSQL          | 16                             |
 | Redis               | 8                              |
+| RabbitMQ            | 4-management                   |
 | MinIO               | `RELEASE.2025-04-22T22-12-26Z` |
 | Mercure             | v0.24                          |
 | Tesseract OCR       | system package                 |
@@ -199,12 +200,12 @@ MINIO_BUCKET=receipts
 MINIO_REGION=us-east-1
 ```
 
-### Redis Messenger transports
+### RabbitMQ Messenger transports
 
 ```dotenv
-MESSENGER_OCR_TRANSPORT_DSN=redis://redis:6379/messages_ocr
-MESSENGER_GROQ_TRANSPORT_DSN=redis://redis:6379/messages_groq
-MESSENGER_CANCEL_TRANSPORT_DSN=redis://redis:6379/messages_cancel
+MESSENGER_OCR_TRANSPORT_DSN="amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/%2f"
+MESSENGER_GROQ_TRANSPORT_DSN="amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/%2f"
+MESSENGER_CANCEL_TRANSPORT_DSN="amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/%2f"
 ```
 
 ### Mercure
@@ -571,12 +572,14 @@ Prometheus collects application and infrastructure metrics, while Grafana provid
 
 The monitoring stack includes:
 
-- Prometheus
-- Grafana
-- cAdvisor
-- Node Exporter
-- PostgreSQL Exporter
-- Redis Exporter
+- Prometheus — metrics collection and storage
+- Grafana — dashboards and visualization
+- cAdvisor — container resource metrics
+- Node Exporter — host resource metrics
+- PostgreSQL Exporter — database metrics
+- RabbitMQ Prometheus endpoint — broker and queue metrics
+
+The Symfony application also exposes custom Prometheus metrics for receipt uploads, processing results, cancellations, and processing durations.
 
 ### Application metrics
 
@@ -593,22 +596,19 @@ Processing duration metrics are represented as Prometheus histograms, allowing G
 
 ### Queue metrics
 
-Redis Stream metrics are collected through Redis Exporter.
+RabbitMQ exposes Prometheus metrics through its built-in metrics endpoint at `rabbitmq:15692/metrics/per-object`.
 
-The dashboard monitors:
+The dashboard monitors queue depth for the following processing queues:
 
-- Redis Stream backlog
-- pending messages
-- active consumers
-- message ingestion rate
+- `ocr` — receipt OCR processing
+- `groq` — receipt analysis using Groq
+- `cancel` — receipt cancellation
 
-Separate queues are monitored for:
+Queue depth represents the number of messages waiting to be processed. Queue metrics help identify backlogs and processing bottlenecks.
 
-- OCR
-- Groq
-- cancellation
+RabbitMQ metrics are collected directly by Prometheus. No separate RabbitMQ exporter container is used.
 
-The queue backlog is measured using Redis consumer-group lag rather than the physical Redis Stream length.
+Redis runs as a separate infrastructure service but is not used as the Symfony Messenger transport and is not currently scraped by Prometheus.
 
 ### Infrastructure metrics
 
@@ -619,42 +619,46 @@ cAdvisor provides container-level resource metrics such as:
 
 PostgreSQL Exporter provides PostgreSQL database metrics.
 
-Redis Exporter provides Redis and Redis Stream metrics.
-
 ### Grafana dashboard
 
 The main Grafana dashboard contains the following sections:
 
 1. **Application**
-    - uploaded receipts
-    - processed receipts
-    - canceled receipts
-    - processing throughput
+    - total number of uploaded receipts
+    - total number of processed receipts
+    - total number of canceled receipts
+    - receipt upload rate
+    - receipt processing rate
 
-2. **Processing latency**
-    - average OCR duration
-    - P95 OCR duration
-    - average Groq duration
-    - P95 Groq duration
-    - average full processing duration
-    - P95 full processing duration
+2. **Processing**
+    - average processing duration includes OCR, Groq and full receipt processing
+    - P95 processing duration includes OCR, Groq and full receipt processing
 
-3. **Queues and workers**
-    - queue backlog
-    - pending messages
-    - active consumers
-    - messages per second
+3. **RabbitMQ queues and message processing**
+    - number of consumers per queue
+    - number of messages in the ocr, groq, and cancel queues, including ready and unacknowledged messages
+    - published, delivered, acknowledged, and redelivered message rates
+
+> [!WARNING]
+> Number of consumers always shows 0 because Symfony Messenger uses AMQP::get instead of AMQP::consume.  
+> This is a known issue in Symfony 8.1 and will be fixed in Symfony 8.2.
 
 4. **Infrastructure**
-    - container CPU usage
-    - container memory usage
+    - number of RabbitMQ connections and channels
+    - RabbitMQ process memory usage
+    - number of active database connections
+    - transaction commit and rollback rates
 
-5. **Redis and PostgreSQL**
-    - Redis memory usage
-    - Redis operations
-    - PostgreSQL connections
+5. **System**
+    - CPU usage per container
+    - memory usage per container
+    - host CPU usage
+    - host memory usage
 
 Grafana is intended as the operational interface for observing the application. It is available separately from the Receiptor API.
+
+The dashboard uses Prometheus as its data source. Metrics are collected from the Receiptor application, RabbitMQ, PostgreSQL Exporter, cAdvisor, and Node Exporter.  
+Redis is used as a storage for Prometheus metrics.
 
 Grafana:
 
@@ -667,6 +671,29 @@ Prometheus:
 ```text
 http://localhost:9090
 ```
+
+RabbitMQ management UI:
+
+```text
+http://localhost:15672
+```
+
+### Dashboard provisioning
+
+The Receiptor dashboard is provisioned from files in the repository:
+
+```text
+monitoring/grafana/
+├── dashboards/
+│   └── receiptor.json
+└── provisioning/
+    ├── dashboards/
+    │   └── receiptor.yml
+    └── datasources/
+        └── prometheus.yml
+```
+
+Grafana loads the dashboard definition and Prometheus data source from these files when the stack starts. Treat `monitoring/grafana/dashboards/receiptor.json` as the version-controlled source of truth. After editing a dashboard in the Grafana UI, export/save the updated JSON and copy the intended changes back into this file, then commit it to Git. A dashboard edited only in the UI may not be reproducible after the provisioned file is restored.
 
 The dashboard can be used during development and load testing to observe how queue depth, worker count, processing latency, and container resource usage change under load.
 
