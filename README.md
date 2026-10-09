@@ -2,11 +2,15 @@
 
 Receiptor is a personal receipt analysis service built with Symfony 8.
 
-The application accepts receipt images, stores them in MinIO, extracts text using Tesseract OCR, analyzes the OCR result with Groq, and saves structured receipt data in PostgreSQL.
+The application accepts receipt images, stores them in MinIO, extracts text using Tesseract OCR, analyzes the OCR result
+with Groq, and saves structured receipt data in PostgreSQL.
 
-Processing is asynchronous and split into independent stages using Symfony Messenger and RabbitMQ. Multiple OCR workers can process receipts concurrently, while Groq and cancellation have their own dedicated workers and queues.
+Processing is asynchronous and split into independent stages using Symfony Messenger and RabbitMQ. Multiple OCR workers
+can process receipts concurrently, while Groq and cancellation have their own dedicated workers and queues.
 
-The project is designed as a practical backend project demonstrating asynchronous processing, queue-based concurrency, external services, object storage, OCR, LLM integration, transactional state changes, row-level locking, real-time events, and containerized infrastructure.
+The project is designed as a practical backend project demonstrating asynchronous processing, queue-based concurrency,
+external services, object storage, OCR, LLM integration, transactional state changes, row-level locking, real-time
+events, and containerized infrastructure.
 
 ## Features
 
@@ -72,7 +76,8 @@ For example, OCR is CPU-intensive and can be scaled independently:
 docker compose up --scale ocr-worker=4 --scale groq-worker=1 --scale cancel-worker=1
 ```
 
-Multiple workers consuming the same RabbitMQ queue act as competing consumers: each message is delivered to one available consumer.
+Multiple workers consuming the same RabbitMQ queue act as competing consumers: each message is delivered to one
+available consumer.
 
 ## Concurrency and cancellation
 
@@ -85,14 +90,16 @@ Receipt processing can involve several concurrent operations:
 A cancellation request can arrive while OCR or Groq processing is already running.
 The application therefore does not rely only on in-memory entity state.
 
-State-changing operations use database transactions and row-level locking. Before committing a processing result, the worker obtains a pessimistic lock on the receipt and checks its current status.
+State-changing operations use database transactions and row-level locking. Before committing a processing result, the
+worker obtains a pessimistic lock on the receipt and checks its current status.
 
 Conceptually:
 <p align="center">
     <img src="docs/cancellation.png" alt="Cancellation" width="500">
 </p>
 
-If cancellation has already been committed, a later processing result is discarded instead of overwriting the canceled state.
+If cancellation has already been committed, a later processing result is discarded instead of overwriting the canceled
+state.
 
 This makes cancellation safe even when OCR or Groq processing is already in progress.
 
@@ -151,7 +158,6 @@ The following services run inside Docker:
 | cAdvisor            | v0.55.1                        |
 | Node Exporter       | v1.12.1                        |
 | PostgreSQL Exporter | v0.20.1                        |
-| Redis Exporter      | v1.93.0                        |
 
 Symfony dependencies are installed through Composer according to `composer.lock`.
 
@@ -188,6 +194,7 @@ POSTGRES_DB=receiptanalyzer
 ```
 
 ### MinIO
+
 Use the same values for `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` and `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`.
 
 ```dotenv
@@ -216,7 +223,8 @@ MERCURE_PUBLIC_URL=http://localhost:8081/.well-known/mercure
 MERCURE_JWT_SECRET=your_secret
 ```
 
-API keys and other sensitive configuration should be stored in the local `.env` file or another environment-specific secret mechanism. The `.env` file is ignored by Git and must not be committed.
+API keys and other sensitive configuration should be stored in the local `.env` file or another environment-specific
+secret mechanism. The `.env` file is ignored by Git and must not be committed.
 
 ## Build
 
@@ -233,7 +241,8 @@ docker compose run --rm --no-deps php composer install
 ```
 
 > [!TIP]
-> The `--no-deps` option prevents Docker Compose from starting PostgreSQL, Redis, and other dependent services just to install Composer dependencies.
+> The `--no-deps` option prevents Docker Compose from starting PostgreSQL, Redis, and other dependent services just to
+> install Composer dependencies.
 
 Alternatively, the Makefile provides:
 
@@ -502,7 +511,8 @@ The cancel worker then updates the receipt state inside a transaction using row-
 After cancellation, a Mercure event is published to notify connected clients.
 
 > [!NOTE]
-> There are no separate HTTP endpoints for OCR or Groq processing. These stages are triggered internally through Symfony Messenger.
+> There are no separate HTTP endpoints for OCR or Groq processing. These stages are triggered internally through Symfony
+> Messenger.
 
 ### API summary
 
@@ -568,7 +578,8 @@ The exact event payload depends on the event being published.
 
 Receiptor includes a monitoring stack based on Prometheus and Grafana.
 
-Prometheus collects application and infrastructure metrics, while Grafana provides dashboards for monitoring receipt processing, asynchronous queues, workers, and container resources.
+Prometheus collects application and infrastructure metrics, while Grafana provides dashboards for monitoring receipt
+processing, asynchronous queues, workers, and container resources.
 
 The monitoring stack includes:
 
@@ -579,7 +590,8 @@ The monitoring stack includes:
 - PostgreSQL Exporter — database metrics
 - RabbitMQ Prometheus endpoint — broker and queue metrics
 
-The Symfony application also exposes custom Prometheus metrics for receipt uploads, processing results, cancellations, and processing durations.
+The Symfony application also exposes custom Prometheus metrics for receipt uploads, processing results, cancellations,
+and processing durations.
 
 ### Application metrics
 
@@ -592,7 +604,8 @@ The application exposes Prometheus metrics for:
 - Groq processing duration
 - full receipt processing duration
 
-Processing duration metrics are represented as Prometheus histograms, allowing Grafana to display both average processing time and percentile-based latency such as P95.
+Processing duration metrics are represented as Prometheus histograms, allowing Grafana to display both average
+processing time and percentile-based latency such as P95.
 
 ### Queue metrics
 
@@ -604,11 +617,13 @@ The dashboard monitors queue depth for the following processing queues:
 - `groq` — receipt analysis using Groq
 - `cancel` — receipt cancellation
 
-Queue depth represents the number of messages waiting to be processed. Queue metrics help identify backlogs and processing bottlenecks.
+Queue depth represents the number of messages waiting to be processed. Queue metrics help identify backlogs and
+processing bottlenecks.
 
 RabbitMQ metrics are collected directly by Prometheus. No separate RabbitMQ exporter container is used.
 
-Redis runs as a separate infrastructure service but is not used as the Symfony Messenger transport and is not currently scraped by Prometheus.
+Redis runs as a separate infrastructure service but is not used as the Symfony Messenger transport and is not currently
+scraped by Prometheus.
 
 ### Infrastructure metrics
 
@@ -655,9 +670,11 @@ The main Grafana dashboard contains the following sections:
     - host CPU usage
     - host memory usage
 
-Grafana is intended as the operational interface for observing the application. It is available separately from the Receiptor API.
+Grafana is intended as the operational interface for observing the application. It is available separately from the
+Receiptor API.
 
-The dashboard uses Prometheus as its data source. Metrics are collected from the Receiptor application, RabbitMQ, PostgreSQL Exporter, cAdvisor, and Node Exporter.  
+The dashboard uses Prometheus as its data source. Metrics are collected from the Receiptor application, RabbitMQ,
+PostgreSQL Exporter, cAdvisor, and Node Exporter.  
 Redis is used as a storage for Prometheus metrics.
 
 Grafana:
@@ -693,9 +710,13 @@ monitoring/grafana/
         └── prometheus.yml
 ```
 
-Grafana loads the dashboard definition and Prometheus data source from these files when the stack starts. Treat `monitoring/grafana/dashboards/receiptor.json` as the version-controlled source of truth. After editing a dashboard in the Grafana UI, export/save the updated JSON and copy the intended changes back into this file, then commit it to Git. A dashboard edited only in the UI may not be reproducible after the provisioned file is restored.
+Grafana loads the dashboard definition and Prometheus data source from these files when the stack starts. Treat
+`monitoring/grafana/dashboards/receiptor.json` as the version-controlled source of truth. After editing a dashboard in
+the Grafana UI, export/save the updated JSON and copy the intended changes back into this file, then commit it to Git. A
+dashboard edited only in the UI may not be reproducible after the provisioned file is restored.
 
-The dashboard can be used during development and load testing to observe how queue depth, worker count, processing latency, and container resource usage change under load.
+The dashboard can be used during development and load testing to observe how queue depth, worker count, processing
+latency, and container resource usage change under load.
 
 ## Logging
 
@@ -765,17 +786,22 @@ docker compose up --scale ocr-worker=4
 
 Receipt processing consists of operations with different performance characteristics.
 
-OCR is CPU-intensive and can be executed by multiple workers. Multiple OCR workers can consume messages from the same Redis transport concurrently, allowing OCR processing to scale horizontally.
+OCR is CPU-intensive and can be executed by multiple workers. Multiple OCR workers can consume messages from the same
+Redis transport concurrently, allowing OCR processing to scale horizontally.
 
-Groq requests are external network operations and are isolated into a separate queue with a dedicated worker. This keeps external API processing independent of CPU-intensive OCR processing.
+Groq requests are external network operations and are isolated into a separate queue with a dedicated worker. This keeps
+external API processing independent of CPU-intensive OCR processing.
 
-Cancellation is also isolated into a dedicated queue and worker. This allows cancellation requests to be processed independently of OCR and Groq workloads.
+Cancellation is also isolated into a dedicated queue and worker. This allows cancellation requests to be processed
+independently of OCR and Groq workloads.
 
 This separation allows each processing stage to be scaled independently.
 
-For example, if OCR becomes the bottleneck, additional OCR workers can be started without creating additional Groq workers.
+For example, if OCR becomes the bottleneck, additional OCR workers can be started without creating additional Groq
+workers.
 
-The architecture therefore demonstrates a practical form of horizontal worker scaling while keeping the application itself as a single Symfony application.
+The architecture therefore demonstrates a practical form of horizontal worker scaling while keeping the application
+itself as a single Symfony application.
 
 ## License
 
@@ -783,27 +809,29 @@ This project is a personal portfolio project.
 
 ### Third-party software and services
 
-Receiptor uses the following third-party software and services, which are subject to their respective licenses and terms:
+Receiptor uses the following third-party software and services, which are subject to their respective licenses and
+terms:
 
-| Technology | License / Terms |
-|-------------------------------------------------------------------------------|--------------------------|
-| [Symfony](https://symfony.com/license) | MIT License |
-| [PostgreSQL](https://www.postgresql.org/about/licence/) | PostgreSQL License |
-| [Redis](https://redis.io/legal/licenses/) | RSALv2 / SSPLv1 / AGPLv3 |
-| [MinIO](https://docs.min.io/license/) | MinIO Software License |
-| [Tesseract OCR](https://github.com/tesseract-ocr/tesseract/blob/main/LICENSE) | Apache License 2.0 |
-| [Mercure](https://github.com/dunglas/mercure) | MIT License |
-| [Nginx](https://nginx.org/en/docs/license.html) | 2-clause BSD License |
-| [Docker Compose](https://github.com/docker/compose/blob/main/LICENSE) | Apache License 2.0 |
-| [Monolog](https://github.com/Seldaek/monolog/blob/main/LICENSE) | MIT License |
-| [Prometheus](https://github.com/prometheus/prometheus/blob/main/LICENSE) | Apache License 2.0 |
-| [Grafana](https://github.com/grafana/grafana/blob/main/LICENSE) | AGPLv3 |
-| [cAdvisor](https://github.com/google/cadvisor/blob/master/LICENSE) | Apache License 2.0 |
-| [Node Exporter](https://github.com/prometheus/node_exporter/blob/master/LICENSE) | Apache License 2.0 |
-| [PostgreSQL Exporter](https://github.com/prometheus-community/postgres_exporter/blob/master/LICENSE) | Apache License 2.0 |
-| [Redis Exporter](https://github.com/oliver006/redis_exporter/blob/master/LICENSE) | MIT License |
-| [Groq](https://console.groq.com/docs/legal/services-agreement) | Groq Services Agreement |
+| Technology                                                                                           | License / Terms          |
+|------------------------------------------------------------------------------------------------------|--------------------------|
+| [Symfony](https://symfony.com/license)                                                               | MIT License              |
+| [PostgreSQL](https://www.postgresql.org/about/licence/)                                              | PostgreSQL License       |
+| [Redis](https://redis.io/legal/licenses/)                                                            | RSALv2 / SSPLv1 / AGPLv3 |
+| [MinIO](https://docs.min.io/license/)                                                                | MinIO Software License   |
+| [Tesseract OCR](https://github.com/tesseract-ocr/tesseract/blob/main/LICENSE)                        | Apache License 2.0       |
+| [Mercure](https://github.com/dunglas/mercure)                                                        | MIT License              |
+| [Nginx](https://nginx.org/en/docs/license.html)                                                      | 2-clause BSD License     |
+| [Docker Compose](https://github.com/docker/compose/blob/main/LICENSE)                                | Apache License 2.0       |
+| [Monolog](https://github.com/Seldaek/monolog/blob/main/LICENSE)                                      | MIT License              |
+| [Prometheus](https://github.com/prometheus/prometheus/blob/main/LICENSE)                             | Apache License 2.0       |
+| [Grafana](https://github.com/grafana/grafana/blob/main/LICENSE)                                      | AGPLv3                   |
+| [cAdvisor](https://github.com/google/cadvisor/blob/master/LICENSE)                                   | Apache License 2.0       |
+| [Node Exporter](https://github.com/prometheus/node_exporter/blob/master/LICENSE)                     | Apache License 2.0       |
+| [PostgreSQL Exporter](https://github.com/prometheus-community/postgres_exporter/blob/master/LICENSE) | Apache License 2.0       |
+| [Groq](https://console.groq.com/docs/legal/services-agreement)                                       | Groq Services Agreement  |
 
-The Receiptor source code does not grant any additional rights to use third-party software, services, trademarks, or APIs. Third-party components and services remain subject to their respective licenses, terms, and usage conditions.
+The Receiptor source code does not grant any additional rights to use third-party software, services, trademarks, or
+APIs. Third-party components and services remain subject to their respective licenses, terms, and usage conditions.
 
-Users deploying or modifying Receiptor are responsible for complying with the applicable licenses and terms of the third-party software and services they use.
+Users deploying or modifying Receiptor are responsible for complying with the applicable licenses and terms of the
+third-party software and services they use.
