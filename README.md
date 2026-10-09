@@ -14,32 +14,18 @@ events, and containerized infrastructure.
 
 ## Features
 
-* Upload one or multiple receipt images
-* Upload up to 10 receipt images in a single request
+* Upload 1 to 10 receipt images in a single request
 * Validate uploaded files before processing
-* Store uploaded files in MinIO
 * OCR processing with Tesseract
 * Receipt analysis with Groq
-* Extraction of:
-    * purchase date
-    * merchant
-    * INN
-    * total amount
-    * purchased items
-    * item quantity
-    * unit price
-    * total item price
-* Asynchronous processing with Symfony Messenger
-* RabbitMQ-based message transports
-* Separate queues for OCR, Groq, and cancellation
-* Multiple OCR workers running concurrently
+* Extraction of purchase date, merchant, INN, total amount, and purchased items
+* Asynchronous processing with Symfony Messenger and RabbitMQ
+* Separate queues and workers for OCR, Groq, and cancellation
 * Asynchronous receipt cancellation
-* Transactional state updates
-* PostgreSQL row-level locking for concurrent operations
-* Protection against processing canceled receipts
+* Transactional state changes with PostgreSQL row-level locking
 * Real-time processing events through Mercure
-* Receipt processing timestamps
 * Cursor-like pagination by receipt ID
+* Monitoring with Prometheus and Grafana
 * Fully containerized development environment with Docker Compose
 
 ## Architecture
@@ -48,18 +34,10 @@ events, and containerized infrastructure.
    <img src="docs/architecture.png" alt="Architecture" width="1200">
 </p>
 
-## Asynchronous processing
+## Asynchronous processing and scaling
 
 Symfony Messenger is used to decouple HTTP requests from potentially slow receipt processing.  
-The application uses three independent RabbitMQ transports:
-
-```dotenv
-MESSENGER_OCR_TRANSPORT_DSN="amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/%2f"
-MESSENGER_GROQ_TRANSPORT_DSN="amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/%2f"
-MESSENGER_CANCEL_TRANSPORT_DSN="amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/%2f"
-```
-
-The corresponding workers are:
+The application uses three independent RabbitMQ transports and three dedicated workers:
 
 ```text
 ocr-worker
@@ -67,8 +45,7 @@ groq-worker
 cancel-worker
 ```
 
-Each worker consumes only its own transport.  
-This allows different processing stages to scale independently.
+Each worker consumes only its own transport, which allows different processing stages to scale independently.
 
 For example, OCR is CPU-intensive and can be scaled independently:
 
@@ -79,6 +56,8 @@ docker compose up --scale ocr-worker=4 --scale groq-worker=1 --scale cancel-work
 Multiple workers consuming the same RabbitMQ queue act as competing consumers: each message is delivered to one
 available consumer.
 
+Transport DSNs are configured through environment variables. See the [Configuration](#configuration) section.
+
 ## Concurrency and cancellation
 
 Receipt processing can involve several concurrent operations:
@@ -87,13 +66,14 @@ Receipt processing can involve several concurrent operations:
 * Groq analysis
 * receipt cancellation
 
-A cancellation request can arrive while OCR or Groq processing is already running.
-The application therefore does not rely only on in-memory entity state.
+A cancellation request can arrive while OCR or Groq processing is already running. The application therefore does not
+rely only on in-memory entity state.
 
 State-changing operations use database transactions and row-level locking. Before committing a processing result, the
 worker obtains a pessimistic lock on the receipt and checks its current status.
 
 Conceptually:
+
 <p align="center">
     <img src="docs/cancellation.png" alt="Cancellation" width="500">
 </p>
@@ -102,35 +82,6 @@ If cancellation has already been committed, a later processing result is discard
 state.
 
 This makes cancellation safe even when OCR or Groq processing is already in progress.
-
-## Services
-
-The application separates infrastructure and domain responsibilities into dedicated services.
-
-### File storage
-
-Uploaded files are stored in MinIO through a storage abstraction.  
-The application does not depend directly on the local filesystem for receipt storage.
-
-### OCR
-
-Tesseract is used to convert receipt images into text.  
-OCR processing runs asynchronously in dedicated workers.
-
-### Receipt analysis
-
-Groq is used to transform OCR text into structured receipt information.  
-The result is mapped into the receipt domain model.
-
-### Messaging
-
-Symfony Messenger provides asynchronous communication between processing stages.  
-Redis is used as the message transport.
-
-### Real-time events
-
-Mercure publishes receipt processing events to connected clients.  
-The client can subscribe to the `receipts` topic and receive events for all receipts.
 
 ## Requirements
 
@@ -226,31 +177,19 @@ MERCURE_JWT_SECRET=your_secret
 API keys and other sensitive configuration should be stored in the local `.env` file or another environment-specific
 secret mechanism. The `.env` file is ignored by Git and must not be committed.
 
-## Build
+## Quick start
 
-Build the PHP image:
+Build the PHP image and install Composer dependencies:
 
 ```bash
 docker compose build
-```
-
-Install Composer dependencies:
-
-```bash
 docker compose run --rm --no-deps php composer install
 ```
 
 > [!TIP]
-> The `--no-deps` option prevents Docker Compose from starting PostgreSQL, Redis, and other dependent services just to
+> The `--no-deps` option prevents Docker Compose from starting PostgreSQL, RabbitMQ, and other dependent services just
+> to
 > install Composer dependencies.
-
-Alternatively, the Makefile provides:
-
-```bash
-make build
-```
-
-## Database
 
 Start the database and run migrations:
 
@@ -258,20 +197,6 @@ Start the database and run migrations:
 docker compose up -d database
 docker compose exec php php bin/console doctrine:migrations:migrate
 ```
-
-Or use:
-
-```bash
-make migrate
-```
-
-To generate a new migration after changing Doctrine entities:
-
-```bash
-make migration
-```
-
-## Start the application
 
 Start all services and workers:
 
@@ -285,85 +210,28 @@ For the development configuration with multiple OCR workers:
 docker compose up --scale ocr-worker=4 --scale groq-worker=1 --scale cancel-worker=1
 ```
 
-The Makefile provides the same configuration:
+The Makefile provides shortcuts for the same operations:
 
 ```bash
-make up
+make build       # build the project
+make migration   # create a migration
+make migrate     # apply migrations
+make entity      # generate an entity
+make up          # start the application with workers
+make clear       # clear Symfony cache
 ```
 
-The API is available at:
+### Service endpoints
 
-```text
-http://localhost:8080
-```
-
-Mercure is available at:
-
-```text
-http://localhost:8081
-```
-
-MinIO API:
-
-```text
-http://localhost:9000
-```
-
-MinIO console:
-
-```text
-http://localhost:9001
-```
-
-Grafana:
-
-```text
-http://localhost:8008
-```
-
-Prometheus:
-
-```text
-http://localhost:9090
-```
-
-## Useful Make commands
-
-Build the project:
-
-```bash
-make build
-```
-
-Create a migration:
-
-```bash
-make migration
-```
-
-Apply migrations:
-
-```bash
-make migrate
-```
-
-Generate an entity:
-
-```bash
-make entity
-```
-
-Start the application with workers:
-
-```bash
-make up
-```
-
-Clear Symfony cache:
-
-```bash
-make clear
-```
+| Service             | URL                      |
+|---------------------|--------------------------|
+| API                 | `http://localhost:8080`  |
+| Mercure             | `http://localhost:8081`  |
+| MinIO API           | `http://localhost:9000`  |
+| MinIO console       | `http://localhost:9001`  |
+| Grafana             | `http://localhost:8008`  |
+| Prometheus          | `http://localhost:9090`  |
+| RabbitMQ management | `http://localhost:15672` |
 
 ## API
 
@@ -373,8 +241,7 @@ make clear
 POST /receipts
 ```
 
-Accepts one or multiple uploaded receipt images.
-A maximum of **10 files** can be uploaded in a single request.
+Accepts one or multiple uploaded receipt images. A maximum of **10 files** can be uploaded in a single request.
 
 Each uploaded file must satisfy the following requirements:
 
@@ -507,8 +374,9 @@ The controller dispatches a cancellation message to the dedicated cancel queue a
 202 Accepted
 ```
 
-The cancel worker then updates the receipt state inside a transaction using row-level locking.  
-After cancellation, a Mercure event is published to notify connected clients.
+After cancellation, a Mercure event is published to notify connected clients.  
+See the [Concurrency and cancellation](#concurrency-and-cancellation) section for details on how cancellation interacts
+with in-flight OCR and Groq processing.
 
 > [!NOTE]
 > There are no separate HTTP endpoints for OCR or Groq processing. These stages are triggered internally through Symfony
@@ -527,15 +395,8 @@ After cancellation, a Mercure event is published to notify connected clients.
 
 Mercure is used to notify clients about changes in receipt processing.
 
-The application publishes events to the:
-
-```text
-receipts
-```
-
-topic.
-
-The frontend subscribes once to this topic and receives events for all receipts.
+The application publishes events to the `receipts` topic. The frontend subscribes once to this topic and receives events
+for all receipts.
 
 Public Mercure endpoint:
 
@@ -559,9 +420,7 @@ eventSource.onmessage = (event) => {
 };
 ```
 
-A processing event contains information about the affected receipt and its current state.
-
-For example:
+A processing event contains information about the affected receipt and its current state. For example:
 
 ```json
 {
@@ -578,10 +437,7 @@ The exact event payload depends on the event being published.
 
 Receiptor includes a monitoring stack based on Prometheus and Grafana.
 
-Prometheus collects application and infrastructure metrics, while Grafana provides dashboards for monitoring receipt
-processing, asynchronous queues, workers, and container resources.
-
-The monitoring stack includes:
+The stack consists of:
 
 - Prometheus — metrics collection and storage
 - Grafana — dashboards and visualization
@@ -622,15 +478,12 @@ processing bottlenecks.
 
 RabbitMQ metrics are collected directly by Prometheus. No separate RabbitMQ exporter container is used.
 
-Redis runs as a separate infrastructure service but is not used as the Symfony Messenger transport and is not currently
+Redis runs as a separate infrastructure service. It is not used as the Symfony Messenger transport and is not currently
 scraped by Prometheus.
 
 ### Infrastructure metrics
 
-cAdvisor provides container-level resource metrics such as:
-
-- CPU usage
-- memory usage
+cAdvisor provides container-level resource metrics such as CPU and memory usage.
 
 PostgreSQL Exporter provides PostgreSQL database metrics.
 
@@ -670,31 +523,6 @@ The main Grafana dashboard contains the following sections:
     - host CPU usage
     - host memory usage
 
-Grafana is intended as the operational interface for observing the application. It is available separately from the
-Receiptor API.
-
-The dashboard uses Prometheus as its data source. Metrics are collected from the Receiptor application, RabbitMQ,
-PostgreSQL Exporter, cAdvisor, and Node Exporter.  
-Redis is used as a storage for Prometheus metrics.
-
-Grafana:
-
-```text
-http://localhost:8008
-```
-
-Prometheus:
-
-```text
-http://localhost:9090
-```
-
-RabbitMQ management UI:
-
-```text
-http://localhost:15672
-```
-
 ### Dashboard provisioning
 
 The Receiptor dashboard is provisioned from files in the repository:
@@ -718,7 +546,7 @@ dashboard edited only in the UI may not be reproducible after the provisioned fi
 The dashboard can be used during development and load testing to observe how queue depth, worker count, processing
 latency, and container resource usage change under load.
 
-## Logging
+## Logging and worker monitoring
 
 The application uses Monolog.
 
@@ -728,10 +556,24 @@ In the development environment, application logs are written to:
 php://stderr
 ```
 
-To follow the log from a worker container:
+List running containers:
+
+```bash
+docker compose ps
+```
+
+Follow logs from specific workers:
 
 ```bash
 docker compose logs -f ocr-worker
+docker compose logs -f groq-worker
+docker compose logs -f cancel-worker
+```
+
+Follow logs from all services:
+
+```bash
+docker compose logs -f
 ```
 
 Messenger console messages such as:
@@ -744,64 +586,11 @@ Handled message
 
 are written to the worker process output as well.
 
-## Monitoring workers
-
-List running containers:
-
-```bash
-docker compose ps
-```
-
-View OCR worker logs:
-
-```bash
-docker compose logs -f ocr-worker
-```
-
-View Groq worker logs:
-
-```bash
-docker compose logs -f groq-worker
-```
-
-View cancellation worker logs:
-
-```bash
-docker compose logs -f cancel-worker
-```
-
-View all application services:
-
-```bash
-docker compose logs -f
-```
-
 The number of OCR workers can be changed without modifying the application:
 
 ```bash
 docker compose up --scale ocr-worker=4
 ```
-
-## Why the project uses separate workers
-
-Receipt processing consists of operations with different performance characteristics.
-
-OCR is CPU-intensive and can be executed by multiple workers. Multiple OCR workers can consume messages from the same
-Redis transport concurrently, allowing OCR processing to scale horizontally.
-
-Groq requests are external network operations and are isolated into a separate queue with a dedicated worker. This keeps
-external API processing independent of CPU-intensive OCR processing.
-
-Cancellation is also isolated into a dedicated queue and worker. This allows cancellation requests to be processed
-independently of OCR and Groq workloads.
-
-This separation allows each processing stage to be scaled independently.
-
-For example, if OCR becomes the bottleneck, additional OCR workers can be started without creating additional Groq
-workers.
-
-The architecture therefore demonstrates a practical form of horizontal worker scaling while keeping the application
-itself as a single Symfony application.
 
 ## License
 
@@ -812,23 +601,24 @@ This project is a personal portfolio project.
 Receiptor uses the following third-party software and services, which are subject to their respective licenses and
 terms:
 
-| Technology                                                                                           | License / Terms          |
-|------------------------------------------------------------------------------------------------------|--------------------------|
-| [Symfony](https://symfony.com/license)                                                               | MIT License              |
-| [PostgreSQL](https://www.postgresql.org/about/licence/)                                              | PostgreSQL License       |
-| [Redis](https://redis.io/legal/licenses/)                                                            | RSALv2 / SSPLv1 / AGPLv3 |
-| [MinIO](https://docs.min.io/license/)                                                                | MinIO Software License   |
-| [Tesseract OCR](https://github.com/tesseract-ocr/tesseract/blob/main/LICENSE)                        | Apache License 2.0       |
-| [Mercure](https://github.com/dunglas/mercure)                                                        | MIT License              |
-| [Nginx](https://nginx.org/en/docs/license.html)                                                      | 2-clause BSD License     |
-| [Docker Compose](https://github.com/docker/compose/blob/main/LICENSE)                                | Apache License 2.0       |
-| [Monolog](https://github.com/Seldaek/monolog/blob/main/LICENSE)                                      | MIT License              |
-| [Prometheus](https://github.com/prometheus/prometheus/blob/main/LICENSE)                             | Apache License 2.0       |
-| [Grafana](https://github.com/grafana/grafana/blob/main/LICENSE)                                      | AGPLv3                   |
-| [cAdvisor](https://github.com/google/cadvisor/blob/master/LICENSE)                                   | Apache License 2.0       |
-| [Node Exporter](https://github.com/prometheus/node_exporter/blob/master/LICENSE)                     | Apache License 2.0       |
-| [PostgreSQL Exporter](https://github.com/prometheus-community/postgres_exporter/blob/master/LICENSE) | Apache License 2.0       |
-| [Groq](https://console.groq.com/docs/legal/services-agreement)                                       | Groq Services Agreement  |
+| Technology                                                                                           | License / Terms                      |
+|------------------------------------------------------------------------------------------------------|--------------------------------------|
+| [Symfony](https://symfony.com/license)                                                               | MIT License                          |
+| [PostgreSQL](https://www.postgresql.org/about/licence/)                                              | PostgreSQL License                   |
+| [Redis](https://redis.io/legal/licenses/)                                                            | RSALv2 / SSPLv1 / AGPLv3             |
+| [RabbitMQ](https://www.rabbitmq.com/mpl.html)                                                        | Mozilla Public License 2.0 (MPL-2.0) |
+| [MinIO](https://docs.min.io/license/)                                                                | MinIO Software License               |
+| [Tesseract OCR](https://github.com/tesseract-ocr/tesseract/blob/main/LICENSE)                        | Apache License 2.0                   |
+| [Mercure](https://github.com/dunglas/mercure)                                                        | MIT License                          |
+| [Nginx](https://nginx.org/en/docs/license.html)                                                      | 2-clause BSD License                 |
+| [Docker Compose](https://github.com/docker/compose/blob/main/LICENSE)                                | Apache License 2.0                   |
+| [Monolog](https://github.com/Seldaek/monolog/blob/main/LICENSE)                                      | MIT License                          |
+| [Prometheus](https://github.com/prometheus/prometheus/blob/main/LICENSE)                             | Apache License 2.0                   |
+| [Grafana](https://github.com/grafana/grafana/blob/main/LICENSE)                                      | AGPLv3                               |
+| [cAdvisor](https://github.com/google/cadvisor/blob/master/LICENSE)                                   | Apache License 2.0                   |
+| [Node Exporter](https://github.com/prometheus/node_exporter/blob/master/LICENSE)                     | Apache License 2.0                   |
+| [PostgreSQL Exporter](https://github.com/prometheus-community/postgres_exporter/blob/master/LICENSE) | Apache License 2.0                   |
+| [Groq](https://console.groq.com/docs/legal/services-agreement)                                       | Groq Services Agreement              |
 
 The Receiptor source code does not grant any additional rights to use third-party software, services, trademarks, or
 APIs. Third-party components and services remain subject to their respective licenses, terms, and usage conditions.
