@@ -10,6 +10,7 @@ final readonly class ReceiptDto
 {
     public function __construct(
         public string             $originalFilename,
+        public string             $storagePath,
         public ReceiptStatus      $status,
         public ?int               $id = null,
         public ?DateTimeImmutable $uploadedAt = null,
@@ -29,6 +30,7 @@ final readonly class ReceiptDto
     {
         return new self(
             originalFilename: $receipt->getOriginalFilename(),
+            storagePath: $receipt->getStoragePath(),
             status: $receipt->getStatus(),
             id: $receipt->getId(),
             uploadedAt: $receipt->getUploadedAt(),
